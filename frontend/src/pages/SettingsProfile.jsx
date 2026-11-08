@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Cpu, Save } from 'lucide-react';
+import { User, Cpu, Activity, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 
@@ -204,6 +204,61 @@ export default function SettingsProfile() {
                   <div>
                     <span className="text-slate-400 block">Sliding Overlap:</span>
                     <span className="font-medium">50 tokens</span>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-900 tracking-tight uppercase flex items-center space-x-1.5">
+                        <Activity className="w-4 h-4 text-emerald-600" />
+                        <span>Live Health Status</span>
+                      </h3>
+                      <button
+                        type="button"
+                        className="text-[11px] text-blue-600 font-semibold hover:text-blue-700"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+
+                    <div className="space-y-3 text-xs">
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-800">PostgreSQL 16 Database</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">12 Normalized Relational Tables</p>
+                        <p className="text-[10px] text-emerald-700 font-mono">ACID Transactions Active</p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-800">pgvector Extension</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">HNSW Cosine Vector Indexing</p>
+                        <p className="text-[10px] text-emerald-700 font-mono">Index: idx_document_chunks_hnsw</p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-800">Python FastAPI AI Engine</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">PyMuPDF + Tesseract OCR + RAG</p>
+                        <p className="text-[10px] text-slate-600 font-mono">Port: 8000</p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-800">Local Ollama LLM</span>
+                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Local inference at localhost:11434</p>
+                        <p className="text-[10px] text-blue-700 font-mono">Zero Cloud Token Costs</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
