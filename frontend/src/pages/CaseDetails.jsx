@@ -17,8 +17,10 @@ export default function CaseDetails() {
   const [activeTab, setActiveTab] = useState('overview');
   const [isPartyModalOpen, setIsPartyModalOpen] = useState(false);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [isHearingModalOpen, setIsHearingModalOpen] = useState(false);
   const [partyForm, setPartyForm] = useState({ name: '', party_type: 'individual', party_role: 'respondent', advocate_name: '' });
   const [memberForm, setMemberForm] = useState({ user_id: '', role_in_case: 'co_counsel', can_edit: true, can_upload: true, can_chat: true });
+  const [hearingForm, setHearingForm] = useState({ hearing_date: '', hearing_time: '10:30', court_room: '', purpose: 'evidence', status: 'scheduled' });
   const [allUsers, setAllUsers] = useState([]);
 
   useEffect(() => {
@@ -78,6 +80,21 @@ export default function CaseDetails() {
       }
     } catch (err) {
       showError(err.message || 'Failed to assign member.');
+    }
+  };
+
+  const handleAddHearing = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.createHearing({ ...hearingForm, case_id: id });
+      if (res.success) {
+        showSuccess('Hearing scheduled on judicial calendar.');
+        setIsHearingModalOpen(false);
+        setHearingForm({ hearing_date: '', hearing_time: '10:30', court_room: '', purpose: 'evidence', status: 'scheduled' });
+        fetchCaseDetails();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to schedule hearing.');
     }
   };
 
@@ -200,10 +217,13 @@ export default function CaseDetails() {
               </p>
               <p className="text-xs text-slate-600 mt-0.5">{caseData.court_name}</p>
             </div>
-            <span className="flex items-center space-x-1 text-blue-700 text-xs font-semibold">
+            <button
+              onClick={() => setIsHearingModalOpen(true)}
+              className="flex items-center space-x-1 text-blue-700 text-xs font-semibold"
+            >
               <Calendar className="w-4 h-4" />
-              <span>Hearing</span>
-            </span>
+              <span>Schedule Hearing</span>
+            </button>
           </div>
         </div>
 
@@ -268,7 +288,16 @@ export default function CaseDetails() {
 
           {activeTab === 'hearings' && (
             <div className="space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Judicial Calendar & Order History</h3>
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-bold text-slate-900">Judicial Calendar & Order History</h3>
+                <button
+                  onClick={() => setIsHearingModalOpen(true)}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Schedule Hearing</span>
+                </button>
+              </div>
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
@@ -377,7 +406,6 @@ export default function CaseDetails() {
               </div>
             </div>
           )}
-        </div>
 
       <Modal isOpen={isPartyModalOpen} onClose={() => setIsPartyModalOpen(false)} title="Link Party to Legal Matter">
         <form onSubmit={handleAddParty} className="space-y-4">
@@ -467,6 +495,60 @@ export default function CaseDetails() {
           <div className="flex justify-end space-x-3 pt-3">
             <button type="button" onClick={() => setIsMemberModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs">Cancel</button>
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold">Assign</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isHearingModalOpen} onClose={() => setIsHearingModalOpen(false)} title="Schedule Court Hearing">
+        <form onSubmit={handleAddHearing} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Hearing Date *</label>
+              <input
+                type="date"
+                required
+                value={hearingForm.hearing_date}
+                onChange={(e) => setHearingForm({ ...hearingForm, hearing_date: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Hearing Time</label>
+              <input
+                type="time"
+                value={hearingForm.hearing_time}
+                onChange={(e) => setHearingForm({ ...hearingForm, hearing_time: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Court Room</label>
+              <input
+                type="text"
+                value={hearingForm.court_room}
+                onChange={(e) => setHearingForm({ ...hearingForm, court_room: e.target.value })}
+                placeholder="e.g. Courtroom 24"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Purpose *</label>
+              <select
+                value={hearingForm.purpose}
+                onChange={(e) => setHearingForm({ ...hearingForm, purpose: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs capitalize"
+              >
+                {['preliminary', 'admission', 'framing_of_issues', 'evidence', 'final_argument', 'judgment', 'status_conference', 'bail_hearing'].map(purpose => (
+                  <option key={purpose} value={purpose}>{purpose.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end space-x-3 pt-3">
+            <button type="button" onClick={() => setIsHearingModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold">Save Hearing</button>
           </div>
         </form>
       </Modal>
