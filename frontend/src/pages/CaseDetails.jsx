@@ -1,20 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Briefcase, Scale, Calendar, ChevronLeft, Sparkles, FileText, Users, CheckCircle } from 'lucide-react';
+import { Briefcase, Scale, Calendar, ChevronLeft, Sparkles, FileText, Users, CheckCircle, Plus, UserPlus } from 'lucide-react';
 import { api } from '../api/client';
 import Badge from '../components/Badge';
+import Modal from '../components/Modal';
+import { useNotification } from '../context/NotificationContext';
 
 export default function CaseDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotification();
 
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isPartyModalOpen, setIsPartyModalOpen] = useState(false);
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [partyForm, setPartyForm] = useState({ name: '', party_type: 'individual', party_role: 'respondent', advocate_name: '' });
+  const [memberForm, setMemberForm] = useState({ user_id: '', role_in_case: 'co_counsel', can_edit: true, can_upload: true, can_chat: true });
+  const [allUsers, setAllUsers] = useState([]);
 
   useEffect(() => {
     fetchCaseDetails();
+    fetchUsersForAssignment();
   }, [id]);
 
   const fetchCaseDetails = async () => {
@@ -29,6 +38,46 @@ export default function CaseDetails() {
       setError(err.message || 'Failed to load case details.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUsersForAssignment = async () => {
+    try {
+      const res = await api.getUsers({});
+      if (res.success) {
+        setAllUsers(res.users);
+      }
+    } catch (e) {
+      console.warn('Could not fetch user list', e);
+    }
+  };
+
+  const handleAddParty = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.addCaseParty(id, partyForm);
+      if (res.success) {
+        showSuccess('Party linked to case successfully.');
+        setIsPartyModalOpen(false);
+        setPartyForm({ name: '', party_type: 'individual', party_role: 'respondent', advocate_name: '' });
+        fetchCaseDetails();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to add party.');
+    }
+  };
+
+  const handleAddMember = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.addCaseMember(id, memberForm);
+      if (res.success) {
+        showSuccess('Team member assigned to case.');
+        setIsMemberModalOpen(false);
+        fetchCaseDetails();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to assign member.');
     }
   };
 
@@ -187,7 +236,16 @@ export default function CaseDetails() {
 
           {activeTab === 'parties' && (
             <div className="space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Litigation Parties & Retained Counsel</h3>
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-bold text-slate-900">Litigation Parties & Retained Counsel</h3>
+                <button
+                  onClick={() => setIsPartyModalOpen(true)}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Link Party</span>
+                </button>
+              </div>
               <div className="grid md:grid-cols-2 gap-4">
                 {caseData.parties?.map(p => (
                   <div key={p.case_party_id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
@@ -278,7 +336,16 @@ export default function CaseDetails() {
 
           {activeTab === 'members' && (
             <div className="space-y-4">
-              <h3 className="text-base font-bold text-slate-900">Assigned Team Members & Authorization</h3>
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-bold text-slate-900">Assigned Team Members & Authorization</h3>
+                <button
+                  onClick={() => setIsMemberModalOpen(true)}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Assign Member</span>
+                </button>
+              </div>
               <div className="grid md:grid-cols-3 gap-4">
                 {caseData.members?.map(m => (
                   <div key={m.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
@@ -312,6 +379,97 @@ export default function CaseDetails() {
           )}
         </div>
 
+      <Modal isOpen={isPartyModalOpen} onClose={() => setIsPartyModalOpen(false)} title="Link Party to Legal Matter">
+        <form onSubmit={handleAddParty} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Party Name *</label>
+            <input
+              type="text"
+              required
+              value={partyForm.name}
+              onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })}
+              placeholder="e.g. Apex Infrastructure Ltd."
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Party Role *</label>
+              <select
+                value={partyForm.party_role}
+                onChange={(e) => setPartyForm({ ...partyForm, party_role: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs capitalize"
+              >
+                {['petitioner', 'respondent', 'appellant', 'appellee', 'plaintiff', 'defendant', 'intervenor'].map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Entity Type</label>
+              <select
+                value={partyForm.party_type}
+                onChange={(e) => setPartyForm({ ...partyForm, party_type: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs capitalize"
+              >
+                {['individual', 'corporation', 'government_body', 'ngo', 'trust'].map(t => (
+                  <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Advocate Name (Optional)</label>
+            <input
+              type="text"
+              value={partyForm.advocate_name}
+              onChange={(e) => setPartyForm({ ...partyForm, advocate_name: e.target.value })}
+              placeholder="e.g. Adv. Priya Menon"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            />
+          </div>
+          <div className="flex justify-end space-x-3 pt-3">
+            <button type="button" onClick={() => setIsPartyModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold">Save Party</button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isMemberModalOpen} onClose={() => setIsMemberModalOpen(false)} title="Assign Team Member to Case">
+        <form onSubmit={handleAddMember} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Select User *</label>
+            <select
+              required
+              value={memberForm.user_id}
+              onChange={(e) => setMemberForm({ ...memberForm, user_id: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            >
+              <option value="">-- Choose User --</option>
+              {allUsers.map(u => (
+                <option key={u.id} value={u.id}>{u.full_name} ({u.email}) - {u.role}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Role in Case</label>
+            <select
+              value={memberForm.role_in_case}
+              onChange={(e) => setMemberForm({ ...memberForm, role_in_case: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            >
+              <option value="lead_counsel">Lead Counsel</option>
+              <option value="co_counsel">Co-Counsel</option>
+              <option value="legal_assistant">Legal Assistant</option>
+              <option value="client_observer">Client Observer</option>
+            </select>
+          </div>
+          <div className="flex justify-end space-x-3 pt-3">
+            <button type="button" onClick={() => setIsMemberModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold">Assign</button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
