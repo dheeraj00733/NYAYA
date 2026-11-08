@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Cpu, Activity, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
+import { api } from '../api/client';
 
 export default function SettingsProfile() {
   const { user, updateUserProfile } = useAuth();
@@ -17,6 +18,30 @@ export default function SettingsProfile() {
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('qwen2.5:latest');
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
+  const [systemHealth, setSystemHealth] = useState(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+
+  useEffect(() => {
+    fetchSystemDiagnostics();
+  }, []);
+
+  const fetchSystemDiagnostics = async () => {
+    try {
+      setCheckingHealth(true);
+      const res = await api.getModels();
+      if (res.available_models) {
+        setAvailableModels(res.available_models);
+        setSelectedModel(res.active_model || 'qwen2.5:latest');
+      }
+
+      const healthRes = await fetch('/health').then(r => r.json()).catch(() => null);
+      setSystemHealth(healthRes);
+    } catch (e) {
+      console.warn('Diagnostics error', e);
+    } finally {
+      setCheckingHealth(false);
+    }
+  };
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -216,9 +241,11 @@ export default function SettingsProfile() {
                       </h3>
                       <button
                         type="button"
+                        onClick={fetchSystemDiagnostics}
+                        disabled={checkingHealth}
                         className="text-[11px] text-blue-600 font-semibold hover:text-blue-700"
                       >
-                        Refresh
+                        {checkingHealth ? 'Checking...' : 'Refresh'}
                       </button>
                     </div>
 
