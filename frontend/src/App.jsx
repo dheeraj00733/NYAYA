@@ -5,20 +5,23 @@ import { NotificationProvider } from './context/NotificationContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
-// Pages
+// Implemented Pages
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import CasesList from './pages/CasesList';
-import CaseDetails from './pages/CaseDetails';
-import DocumentManagement from './pages/DocumentManagement';
-import DocumentViewer from './pages/DocumentViewer';
-import AIChatbot from './pages/AIChatbot';
-import ExtractedFacts from './pages/ExtractedFacts';
-import HearingTimeline from './pages/HearingTimeline';
-import SettingsProfile from './pages/SettingsProfile';
-import SystemDesign from './pages/SystemDesign';
+
+function ModulePlaceholder({ title }) {
+  return (
+    <div className="p-8 max-w-2xl mx-auto mt-10 bg-white rounded-xl border border-slate-200 shadow-sm text-center">
+      <h2 className="text-xl font-semibold text-slate-800 mb-2">{title}</h2>
+      <p className="text-sm text-slate-500">
+        This module is scheduled for the next development milestone.
+      </p>
+    </div>
+  );
+}
 
 export default function App() {
   return (
@@ -41,14 +44,14 @@ export default function App() {
             >
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/cases" element={<CasesList />} />
-              <Route path="/cases/:id" element={<CaseDetails />} />
-              <Route path="/documents" element={<DocumentManagement />} />
-              <Route path="/documents/:id" element={<DocumentViewer />} />
-              <Route path="/chat" element={<AIChatbot />} />
-              <Route path="/facts" element={<ExtractedFacts />} />
-              <Route path="/hearings" element={<HearingTimeline />} />
-              <Route path="/settings" element={<SettingsProfile />} />
-              <Route path="/system-design" element={<SystemDesign />} />
+              <Route path="/cases/:id" element={<ModulePlaceholder title="Case Details" />} />
+              <Route path="/documents" element={<ModulePlaceholder title="Document Management" />} />
+              <Route path="/documents/:id" element={<ModulePlaceholder title="Document Viewer" />} />
+              <Route path="/chat" element={<ModulePlaceholder title="AI Legal Co-Counsel (RAG)" />} />
+              <Route path="/facts" element={<ModulePlaceholder title="Extracted Facts" />} />
+              <Route path="/hearings" element={<ModulePlaceholder title="Hearings Timeline" />} />
+              <Route path="/settings" element={<ModulePlaceholder title="Settings & Profile" />} />
+              <Route path="/system-design" element={<ModulePlaceholder title="Architecture & Schema" />} />
             </Route>
 
             {/* Fallback */}
