@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Briefcase, Scale, Calendar, ChevronLeft, Sparkles, FileText } from 'lucide-react';
+import { Briefcase, Scale, Calendar, ChevronLeft, Sparkles, FileText, Users, CheckCircle } from 'lucide-react';
 import { api } from '../api/client';
 import Badge from '../components/Badge';
 
@@ -11,6 +11,7 @@ export default function CaseDetails() {
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     fetchCaseDetails();
@@ -107,7 +108,33 @@ export default function CaseDetails() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="flex border-b border-slate-200 space-x-6 text-xs font-semibold">
+        {[
+          { key: 'overview', label: 'Matter Overview', icon: Briefcase },
+          { key: 'parties', label: `Parties (${caseData.parties?.length || 0})`, icon: Scale },
+          { key: 'hearings', label: `Hearings (${caseData.hearings?.length || 0})`, icon: Calendar },
+          { key: 'documents', label: `Documents (${caseData.documents?.length || 0})`, icon: FileText },
+          { key: 'members', label: `Team & Members (${caseData.members?.length || 0})`, icon: Users }
+        ].map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`pb-3 flex items-center space-x-2 border-b-2 transition-all ${
+                activeTab === tab.key
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'overview' && <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="text-base font-bold text-slate-900 mb-3">Case Context & Description</h3>
@@ -156,7 +183,135 @@ export default function CaseDetails() {
             </div>
           </div>
         </div>
-      </div>
+      </div>}
+
+          {activeTab === 'parties' && (
+            <div className="space-y-4">
+              <h3 className="text-base font-bold text-slate-900">Litigation Parties & Retained Counsel</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {caseData.parties?.map(p => (
+                  <div key={p.case_party_id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900">{p.name}</span>
+                      <Badge variant={p.party_role} size="xs">{p.party_role}</Badge>
+                    </div>
+                    <p className="text-xs text-slate-500 capitalize">{p.party_type}</p>
+                    {p.advocate_name && (
+                      <p className="text-xs text-slate-700 pt-2 border-t border-slate-100">
+                        <span className="font-medium text-slate-500">Appearing Counsel:</span> {p.advocate_name}
+                      </p>
+                    )}
+                    {p.address && <p className="text-[11px] text-slate-400">{p.address}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'hearings' && (
+            <div className="space-y-4">
+              <h3 className="text-base font-bold text-slate-900">Judicial Calendar & Order History</h3>
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-6 py-3">Hearing Date & Time</th>
+                      <th className="px-6 py-3">Purpose</th>
+                      <th className="px-6 py-3">Courtroom & Judge</th>
+                      <th className="px-6 py-3">Outcome / Directives</th>
+                      <th className="px-6 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {caseData.hearings?.map(h => (
+                      <tr key={h.id} className="hover:bg-slate-50/60">
+                        <td className="px-6 py-4 font-bold text-slate-900">
+                          {new Date(h.hearing_date).toLocaleDateString()}
+                          {h.hearing_time && <span className="block text-[11px] text-slate-400 font-normal">{h.hearing_time.slice(0, 5)}</span>}
+                        </td>
+                        <td className="px-6 py-4 capitalize">{h.purpose.replace(/_/g, ' ')}</td>
+                        <td className="px-6 py-4 text-slate-600">
+                          {h.court_room || 'Main Court'}
+                          {h.presiding_judge && <span className="block text-[11px] text-slate-400">{h.presiding_judge}</span>}
+                        </td>
+                        <td className="px-6 py-4 max-w-xs text-slate-600">{h.outcome_summary || 'Order awaited'}</td>
+                        <td className="px-6 py-4"><Badge variant={h.status} size="xs">{h.status}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'documents' && (
+            <div className="space-y-4">
+              <h3 className="text-base font-bold text-slate-900">Case Documents Repository</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {caseData.documents?.map(doc => (
+                  <div
+                    key={doc.id}
+                    onClick={() => navigate(`/documents/${doc.id}`)}
+                    className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-blue-400 cursor-pointer flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-slate-900 line-clamp-1">{doc.title}</span>
+                        <Badge variant={doc.processing_status} size="xs">{doc.processing_status}</Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mb-3">{doc.file_name} • {doc.total_pages || 1} pages</p>
+                      {doc.summary_text && (
+                        <p className="text-xs text-slate-600 line-clamp-3 bg-slate-50 p-2.5 rounded-lg border border-slate-100 italic">
+                          "{doc.summary_text.replace(/###/g, '').slice(0, 150)}..."
+                        </p>
+                      )}
+                    </div>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-blue-600 font-semibold mt-3">
+                      <span>Open Split Reader</span>
+                      <span>→</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'members' && (
+            <div className="space-y-4">
+              <h3 className="text-base font-bold text-slate-900">Assigned Team Members & Authorization</h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                {caseData.members?.map(m => (
+                  <div key={m.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700">
+                        {m.full_name?.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900">{m.full_name}</h4>
+                        <p className="text-[11px] text-slate-500 capitalize">{m.role_in_case.replace(/_/g, ' ')}</p>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-slate-500 space-y-1 pt-2 border-t border-slate-100">
+                      <p className="flex items-center space-x-2">
+                        <CheckCircle className={`w-3.5 h-3.5 ${m.can_edit ? 'text-emerald-500' : 'text-slate-300'}`} />
+                        <span>Can Edit Case: {m.can_edit ? 'Yes' : 'No'}</span>
+                      </p>
+                      <p className="flex items-center space-x-2">
+                        <CheckCircle className={`w-3.5 h-3.5 ${m.can_upload ? 'text-emerald-500' : 'text-slate-300'}`} />
+                        <span>Can Upload Docs: {m.can_upload ? 'Yes' : 'No'}</span>
+                      </p>
+                      <p className="flex items-center space-x-2">
+                        <CheckCircle className={`w-3.5 h-3.5 ${m.can_chat ? 'text-emerald-500' : 'text-slate-300'}`} />
+                        <span>Can Use AI Chat: {m.can_chat ? 'Yes' : 'No'}</span>
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
     </div>
   );
 }
