@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Save } from 'lucide-react';
+import { User, Cpu, Save } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 
@@ -14,6 +14,9 @@ export default function SettingsProfile() {
     bar_council_id: user?.bar_council_id || ''
   });
   const [profileSaving, setProfileSaving] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('qwen2.5:latest');
+  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -138,6 +141,73 @@ export default function SettingsProfile() {
                 </button>
               </div>
             </form>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
+              <Cpu className="w-4 h-4 text-purple-600" />
+              <span>Local AI Engine & Model Parameters</span>
+            </h3>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Ollama Local LLM Model
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-medium"
+                >
+                  {availableModels.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                  {availableModels.length === 0 && (
+                    <option value="qwen2.5:latest">qwen2.5:latest (Default)</option>
+                  )}
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Configurable local model. Lightweight alternative: <code className="bg-slate-100 px-1 py-0.5 rounded">llama3.2:1b</code>
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+                  Ollama Host URL
+                </label>
+                <input
+                  type="text"
+                  value={ollamaUrl}
+                  onChange={(e) => setOllamaUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Runs natively on macOS at <code className="bg-slate-100 px-1 py-0.5 rounded">http://localhost:11434</code> or in Docker via <code className="bg-slate-100 px-1 py-0.5 rounded">http://host.docker.internal:11434</code>
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <span className="font-bold text-slate-800 block">Vector Embedding Specifications</span>
+                <div className="grid grid-cols-2 gap-2 text-slate-600">
+                  <div>
+                    <span className="text-slate-400 block">Dense Model:</span>
+                    <span className="font-mono text-blue-700 font-semibold">all-MiniLM-L6-v2</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Vector Dimension:</span>
+                    <span className="font-mono font-semibold">384 Dimensions</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Chunk Size:</span>
+                    <span className="font-medium">400 tokens (~300 words)</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block">Sliding Overlap:</span>
+                    <span className="font-medium">50 tokens</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
