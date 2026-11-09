@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { FileText, Search, Sparkles, Trash2, Download, Eye } from 'lucide-react';
+import { FileText, UploadCloud, Search, Sparkles, Trash2, Download, Eye } from 'lucide-react';
 import { api } from '../api/client';
 import Badge from '../components/Badge';
+import Modal from '../components/Modal';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,6 +20,12 @@ export default function DocumentManagement() {
   const [selectedCase, setSelectedCase] = useState(caseIdFilter);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadCaseId, setUploadCaseId] = useState(caseIdFilter);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('petition');
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     fetchCases();
@@ -33,6 +40,9 @@ export default function DocumentManagement() {
       const res = await api.getCases({ limit: 100 });
       if (res.success) {
         setCases(res.cases);
+        if (!uploadCaseId && res.cases.length > 0) {
+          setUploadCaseId(res.cases[0].id);
+        }
       }
     } catch (e) {
       console.warn('Could not load cases list', e);
@@ -85,6 +95,40 @@ export default function DocumentManagement() {
     }
   };
 
+  const handleUploadSubmit = async (e) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      showError('Please select a PDF document to upload.');
+      return;
+    }
+    if (!uploadCaseId) {
+      showError('Please associate the document with a legal case.');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('case_id', uploadCaseId);
+      formData.append('title', uploadTitle || uploadFile.name.replace(/\.[^/.]+$/, ''));
+      formData.append('document_category', uploadCategory);
+
+      const res = await api.uploadDocument(formData);
+      if (res.success) {
+        showSuccess('Document uploaded! AI text parsing and embedding generation initiated in background.');
+        setIsUploadModalOpen(false);
+        setUploadFile(null);
+        setUploadTitle('');
+        fetchDocuments();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to upload document.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       {/* Header */}
@@ -97,7 +141,15 @@ export default function DocumentManagement() {
             PDF text extraction, Tesseract OCR fallback, 384-dim semantic chunking, and pgvector storage
           </p>
         </div>
-
+        {user?.role !== 'client' && (
+          <button
+            onClick={() => setIsUploadModalOpen(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm shadow-blue-500/20 transition-all self-start sm:self-auto"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Upload Legal PDF</span>
+          </button>
+        )}
       </div>
 
       {/* Filter and Search Bar */}
@@ -153,6 +205,14 @@ export default function DocumentManagement() {
           <p className="text-xs text-slate-500 mt-1 mb-4">
             Upload petitions, court orders, or contract PDFs to enable AI intelligence and RAG.
           </p>
+          {user?.role !== 'client' && (
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700"
+            >
+              Upload First Document
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -241,6 +301,113 @@ export default function DocumentManagement() {
         </div>
       )}
 
+      <Modal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        title="Upload Legal Document (PDF)"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleUploadSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+              Select Legal Matter / Case *
+            </label>
+            <select
+              required
+              value={uploadCaseId}
+              onChange={(e) => setUploadCaseId(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white"
+            >
+              <option value="">-- Select Case --</option>
+              {cases.map(c => (
+                <option key={c.id} value={c.id}>[{c.case_number}] {c.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+              Document Title *
+            </label>
+            <input
+              type="text"
+              required
+              value={uploadTitle}
+              onChange={(e) => setUploadTitle(e.target.value)}
+              placeholder="e.g. Writ Petition for Quashing FIR 402/2023"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+              Document Category
+            </label>
+            <select
+              value={uploadCategory}
+              onChange={(e) => setUploadCategory(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs capitalize"
+            >
+              {['petition', 'judgment', 'order', 'evidence', 'affidavit', 'contract', 'notice', 'pleading', 'other'].map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
+              PDF Document File *
+            </label>
+            <div className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center bg-slate-50 hover:bg-blue-50/20 transition-all cursor-pointer">
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setUploadFile(e.target.files[0]);
+                    if (!uploadTitle) {
+                      setUploadTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ''));
+                    }
+                  }
+                }}
+                className="hidden"
+                id="pdf-upload-input"
+              />
+              <label htmlFor="pdf-upload-input" className="cursor-pointer">
+                <UploadCloud className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                {uploadFile ? (
+                  <div className="text-xs">
+                    <span className="font-bold text-slate-900 block truncate">{uploadFile.name}</span>
+                    <span className="text-slate-500">{(uploadFile.size / 1024 / 1024).toFixed(2)} MB</span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-600">
+                    <span className="font-semibold text-blue-600">Click to choose PDF</span> or drag and drop
+                    <p className="text-[11px] text-slate-400 mt-1">Maximum file size: 50MB</p>
+                  </div>
+                )}
+              </label>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsUploadModalOpen(false)}
+              className="px-4 py-2 border rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={uploading || !uploadFile}
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 disabled:opacity-50"
+            >
+              {uploading ? 'Processing Document...' : 'Upload & Start AI Pipeline'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
