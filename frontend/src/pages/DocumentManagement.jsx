@@ -11,7 +11,7 @@ export default function DocumentManagement() {
   const caseIdFilter = searchParams.get('case_id') || '';
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showInfo } = useNotification();
 
   const [documents, setDocuments] = useState([]);
   const [cases, setCases] = useState([]);
@@ -69,6 +69,19 @@ export default function DocumentManagement() {
       }
     } catch (err) {
       showError(err.message || 'Failed to delete document.');
+    }
+  };
+
+  const handleTriggerSummary = async (docId) => {
+    try {
+      showInfo('Triggering AI legal summarization...');
+      const res = await api.summarizeDocument(docId);
+      if (res.success) {
+        showSuccess('AI Summary updated successfully.');
+        fetchDocuments();
+      }
+    } catch (err) {
+      showError(err.message || 'Summarization failed.');
     }
   };
 
@@ -194,6 +207,14 @@ export default function DocumentManagement() {
                 </button>
 
                 <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => handleTriggerSummary(doc.id)}
+                    title="Generate/Refresh AI Summary"
+                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </button>
+
                   <a
                     href={api.getDocumentDownloadUrl(doc.id)}
                     target="_blank"
