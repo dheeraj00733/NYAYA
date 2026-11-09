@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { MessageSquare, Send, Sparkles } from 'lucide-react';
+import { MessageSquare, Send, Sparkles, Plus, Trash2 } from 'lucide-react';
 import { api } from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 
 export default function AIChatbot() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const chatIdParam = searchParams.get('chatId');
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -16,7 +16,7 @@ export default function AIChatbot() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingQuery, setSendingQuery] = useState(false);
   const messagesEndRef = useRef(null);
-  const { showError } = useNotification();
+  const { showSuccess, showError } = useNotification();
 
   useEffect(() => {
     loadCasesAndChats();
@@ -72,16 +72,80 @@ export default function AIChatbot() {
     }
   };
 
-  const handleSendMessage = async (event) => {
-    event.preventDefault();
-    if (!inputQuery.trim()) return;
-    if (!activeChat) {
-      showError('Start or select a chat before sending a message.');
+  const handleCreateNewChat = async () => {
+    if (!selectedCaseId) {
+      showError('Please select a case to ground the AI conversation.');
       return;
     }
 
+    try {
+      const selectedCase = cases.find(caseItem => caseItem.id === selectedCaseId);
+      const res = await api.createChat({
+        case_id: selectedCaseId,
+        title: `Inquiry - ${selectedCase?.case_number || 'Case Docket'}`
+      });
+
+      if (res.success) {
+        setChats(previous => [res.chat, ...previous]);
+        setActiveChat(res.chat);
+        setMessages([]);
+        setSearchParams({ chatId: res.chat.id, caseId: selectedCaseId });
+        showSuccess('New grounded AI session initialized.');
+      }
+    } catch (err) {
+      showError(err.message || 'Could not start new chat.');
+    }
+  };
+
+  const handleDeleteChat = async (event, chatId) => {
+    event.stopPropagation();
+    if (!window.confirm('Delete this conversation history?')) return;
+
+    try {
+      const res = await api.deleteChat(chatId);
+      if (res.success) {
+        setChats(previous => previous.filter(chat => chat.id !== chatId));
+        if (activeChat?.id === chatId) {
+          setActiveChat(null);
+          setMessages([]);
+          setSearchParams({});
+        }
+        showSuccess('Conversation deleted.');
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to delete chat.');
+    }
+  };
+
+  const handleSendMessage = async (event) => {
+    event.preventDefault();
+    if (!inputQuery.trim()) return;
+
     const query = inputQuery.trim();
     setInputQuery('');
+    let currentChatId = activeChat?.id;
+
+    if (!currentChatId) {
+      if (!selectedCaseId) {
+        showError('Please select a case first.');
+        return;
+      }
+
+      try {
+        const createRes = await api.createChat({
+          case_id: selectedCaseId,
+          title: `${query.slice(0, 35)}...`
+        });
+        currentChatId = createRes.chat.id;
+        setActiveChat(createRes.chat);
+        setChats(previous => [createRes.chat, ...previous]);
+        setSearchParams({ chatId: currentChatId, caseId: selectedCaseId });
+      } catch {
+        showError('Could not initialize session.');
+        return;
+      }
+    }
+
     const tempUserMsg = {
       id: `temp-${Date.now()}`,
       sender_type: 'user',
@@ -92,7 +156,7 @@ export default function AIChatbot() {
 
     try {
       setSendingQuery(true);
-      const res = await api.sendMessage(activeChat.id, { content: query });
+      const res = await api.sendMessage(currentChatId, { content: query });
       if (res.success) {
         setMessages(previous => [
           ...previous.filter(message => message.id !== tempUserMsg.id),
@@ -116,6 +180,13 @@ export default function AIChatbot() {
             <MessageSquare className="w-4 h-4 text-blue-600" />
             <span>AI Co-Counsel Threads</span>
           </span>
+          <button
+            onClick={handleCreateNewChat}
+            className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New</span>
+          </button>
           <div>
             <label className="block text-[11px] font-semibold text-slate-500 mb-1">Matter Scope:</label>
             <select
@@ -131,17 +202,28 @@ export default function AIChatbot() {
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {chats.map(chat => (
-            <button
+            <div
               key={chat.id}
               onClick={() => {
                 setActiveChat(chat);
                 loadChatMessages(chat.id);
+                setSearchParams({ chatId: chat.id, caseId: chat.case_id });
               }}
-              className={`w-full text-left p-3 rounded-xl text-xs font-medium transition-all ${
+              className={`w-full text-left p-3 rounded-xl text-xs font-medium cursor-pointer transition-all ${
                 activeChat?.id === chat.id ? 'bg-blue-50 text-blue-900 border border-blue-200' : 'text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <span className="font-bold truncate block">{chat.title}</span>
+              <span className="flex items-start justify-between">
+                <span className="font-bold truncate">{chat.title}</span>
+                <button
+                  type="button"
+                  onClick={(event) => handleDeleteChat(event, chat.id)}
+                  className="ml-2 p-1 text-slate-400 hover:text-rose-600"
+                  aria-label="Delete conversation"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </div>
+              </span>
               <span className="text-[11px] text-slate-400 mt-0.5 truncate block">{chat.case_number}</span>
             </button>
           ))}
