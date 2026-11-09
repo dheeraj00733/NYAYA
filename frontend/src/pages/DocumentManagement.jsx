@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { FileText, Search, Sparkles, Download, Eye } from 'lucide-react';
+import { FileText, Search, Sparkles, Trash2, Download, Eye } from 'lucide-react';
 import { api } from '../api/client';
 import Badge from '../components/Badge';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function DocumentManagement() {
   const [searchParams] = useSearchParams();
   const caseIdFilter = searchParams.get('case_id') || '';
   const navigate = useNavigate();
-  const { showError } = useNotification();
+  const { user } = useAuth();
+  const { showSuccess, showError } = useNotification();
 
   const [documents, setDocuments] = useState([]);
   const [cases, setCases] = useState([]);
@@ -52,6 +54,21 @@ export default function DocumentManagement() {
       showError(err.message || 'Failed to fetch documents.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (docId, title) => {
+    if (!window.confirm(`Are you sure you want to delete "${title}"? Its vector embeddings and extracted facts will be removed.`)) {
+      return;
+    }
+    try {
+      const res = await api.deleteDocument(docId);
+      if (res.success) {
+        showSuccess('Document and vector embeddings deleted.');
+        fetchDocuments();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to delete document.');
     }
   };
 
@@ -187,6 +204,15 @@ export default function DocumentManagement() {
                     <Download className="w-4 h-4" />
                   </a>
 
+                  {user?.role !== 'client' && (
+                    <button
+                      onClick={() => handleDelete(doc.id, doc.title)}
+                      title="Delete Document"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
