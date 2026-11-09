@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, Layers, ShieldCheck, CheckCircle2, ArrowRight, GitFork } from 'lucide-react';
+import { Database, Layers, ShieldCheck, CheckCircle2, ArrowRight, GitFork, Cpu } from 'lucide-react';
 
 export default function SystemDesign() {
   const [activeTab, setActiveTab] = useState('erd'); // 'erd' | 'normalization' | 'architecture'
@@ -35,7 +35,8 @@ export default function SystemDesign() {
       <div className="flex border-b border-slate-200 space-x-6 text-xs font-bold">
         {[
           { key: 'erd', label: '12-Table Schema & ERD', icon: Database },
-          { key: 'normalization', label: '1NF to 5NF Proofs & Anomalies', icon: Layers }
+          { key: 'normalization', label: '1NF to 5NF Proofs & Anomalies', icon: Layers },
+          { key: 'architecture', label: 'AI & Backend Architecture', icon: Cpu }
         ].map(t => {
           const Icon = t.icon;
           return (
@@ -131,6 +132,37 @@ export default function SystemDesign() {
         </div>
       )}
 
+      {/* Tab 3: Architecture */}
+      {activeTab === 'architecture' && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Multi-Tier Decoupled Microservice Topology</h3>
+            
+            <div className="grid md:grid-cols-3 gap-4 text-xs">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <span className="font-bold text-slate-900 block">1. Express Backend (Port 5001)</span>
+                <p className="text-slate-600">
+                  Handles JWT authentication, role-based access control, file uploads via Multer, audit logging, and CRUD queries against PostgreSQL.
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <span className="font-bold text-slate-900 block">2. Python AI Service (Port 8000)</span>
+                <p className="text-slate-600">
+                  Executes PyMuPDF text parsing, Tesseract OCR fallback, 384-dimensional dense vector embeddings with SentenceTransformers, and RAG grounding.
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <span className="font-bold text-slate-900 block">3. Local Ollama LLM (Port 11434)</span>
+                <p className="text-slate-600">
+                  Runs local instruction models (Qwen2.5 / Llama3.2) on host macOS or Docker without incurring external cloud token billing or API leaks.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
