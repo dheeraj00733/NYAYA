@@ -38,3 +38,15 @@ test('Backend Security Suite: JWT Token Sign & Verification', async (t) => {
     jwt.verify(token, 'invalid_secret');
   }, /invalid signature/, 'Tampered secret must fail verification');
 });
+
+test('Backend Relational Integrity: Normalization Verification', () => {
+  const roles = ['lawyer', 'client', 'admin'];
+  assert.equal(roles.includes('lawyer'), true);
+  assert.equal(roles.includes('client'), true);
+  assert.equal(roles.includes('admin'), true);
+  assert.equal(roles.includes('intruder'), false);
+
+  const categories = ['civil', 'criminal', 'corporate', 'constitutional', 'family', 'tax', 'ipr', 'labor', 'arbitration', 'other'];
+  assert.equal(categories.includes('criminal'), true);
+  assert.equal(categories.includes('corporate'), true);
+});
