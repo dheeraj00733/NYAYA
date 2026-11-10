@@ -75,3 +75,67 @@ exports.getCases = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.getCaseById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const caseQuery = `
+      SELECT
+        c.*,
+        u.full_name AS creator_name,
+        u.email AS creator_email
+      FROM cases c
+      LEFT JOIN users u ON c.created_by = u.id
+      WHERE c.id = $1
+    `;
+    const caseResult = await db.query(caseQuery, [id]);
+
+    if (caseResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Case not found.' });
+    }
+
+    const caseData = caseResult.rows[0];
+    const membersResult = await db.query(`
+      SELECT cm.id, cm.role_in_case, cm.can_edit, cm.can_upload, cm.can_chat, cm.joined_at,
+             u.id AS user_id, u.full_name, u.email, u.role, u.organization, u.avatar_url
+      FROM case_members cm
+      JOIN users u ON cm.user_id = u.id
+      WHERE cm.case_id = $1
+      ORDER BY cm.joined_at ASC
+    `, [id]);
+
+    const partiesResult = await db.query(`
+      SELECT cp.id AS case_party_id, cp.party_role, cp.advocate_name, cp.legal_counsel_firm,
+             p.id AS party_id, p.name, p.party_type, p.contact_email, p.contact_phone, p.address
+      FROM case_parties cp
+      JOIN parties p ON cp.party_id = p.id
+      WHERE cp.case_id = $1
+    `, [id]);
+
+    const hearingsResult = await db.query(
+      'SELECT * FROM hearings WHERE case_id = $1 ORDER BY hearing_date ASC',
+      [id]
+    );
+    const docsResult = await db.query(`
+      SELECT id, title, file_name, file_size_bytes, document_category, total_pages,
+             processing_status, ocr_applied, summary_text, created_at
+      FROM legal_documents
+      WHERE case_id = $1
+      ORDER BY created_at DESC
+    `, [id]);
+
+    return res.json({
+      success: true,
+      case: {
+        ...caseData,
+        members: membersResult.rows,
+        parties: partiesResult.rows,
+        hearings: hearingsResult.rows,
+        documents: docsResult.rows
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
