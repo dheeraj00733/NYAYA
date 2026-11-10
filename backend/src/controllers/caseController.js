@@ -374,3 +374,109 @@ exports.deleteCase = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.addCaseMember = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      user_id,
+      role_in_case = 'co_counsel',
+      can_edit = true,
+      can_upload = true,
+      can_chat = true
+    } = req.body;
+
+    if (!user_id) {
+      return res.status(400).json({ success: false, error: 'user_id is required.' });
+    }
+
+    const insertQuery = `
+      INSERT INTO case_members (case_id, user_id, role_in_case, can_edit, can_upload, can_chat)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (case_id, user_id)
+      DO UPDATE SET role_in_case = EXCLUDED.role_in_case, can_edit = EXCLUDED.can_edit,
+                    can_upload = EXCLUDED.can_upload, can_chat = EXCLUDED.can_chat
+      RETURNING *
+    `;
+    const result = await db.query(insertQuery, [
+      id,
+      user_id,
+      role_in_case,
+      can_edit,
+      can_upload,
+      can_chat
+    ]);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Case member enrolled successfully.',
+      member: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.removeCaseMember = async (req, res, next) => {
+  try {
+    const { id, userId } = req.params;
+    await db.query('DELETE FROM case_members WHERE case_id = $1 AND user_id = $2', [id, userId]);
+
+    return res.json({
+      success: true,
+      message: 'Case member removed.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.addCaseParty = async (req, res, next) => {
+  const client = await db.getClient();
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      party_type = 'individual',
+      contact_email,
+      contact_phone,
+      address,
+      party_role,
+      advocate_name,
+      legal_counsel_firm
+    } = req.body;
+
+    if (!name || !party_role) {
+      return res.status(400).json({ success: false, error: 'Party name and party_role are required.' });
+    }
+
+    await client.query('BEGIN');
+    const partyRes = await client.query(
+      `INSERT INTO parties (name, party_type, contact_email, contact_phone, address)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [name, party_type, contact_email || null, contact_phone || null, address || null]
+    );
+    const partyId = partyRes.rows[0].id;
+
+    const linkRes = await client.query(
+      `INSERT INTO case_parties (case_id, party_id, party_role, advocate_name, legal_counsel_firm)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (case_id, party_id, party_role)
+       DO UPDATE SET advocate_name = EXCLUDED.advocate_name, legal_counsel_firm = EXCLUDED.legal_counsel_firm
+       RETURNING *`,
+      [id, partyId, party_role, advocate_name || null, legal_counsel_firm || null]
+    );
+
+    await client.query('COMMIT');
+    return res.status(201).json({
+      success: true,
+      message: 'Party added to case successfully.',
+      case_party: linkRes.rows[0]
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+};
