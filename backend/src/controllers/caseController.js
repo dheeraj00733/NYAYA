@@ -260,3 +260,117 @@ exports.createCase = async (req, res, next) => {
     client.release();
   }
 };
+
+exports.updateCase = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      category,
+      status,
+      priority,
+      court_name,
+      court_type,
+      judge_name,
+      filing_date,
+      next_hearing_date,
+      closure_date
+    } = req.body;
+
+    const updateQuery = `
+      UPDATE cases
+      SET
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        category = COALESCE($3, category),
+        status = COALESCE($4, status),
+        priority = COALESCE($5, priority),
+        court_name = COALESCE($6, court_name),
+        court_type = COALESCE($7, court_type),
+        judge_name = COALESCE($8, judge_name),
+        filing_date = COALESCE($9, filing_date),
+        next_hearing_date = COALESCE($10, next_hearing_date),
+        closure_date = COALESCE($11, closure_date),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $12
+      RETURNING *
+    `;
+    const values = [
+      title,
+      description,
+      category,
+      status,
+      priority,
+      court_name,
+      court_type,
+      judge_name,
+      filing_date,
+      next_hearing_date,
+      closure_date,
+      id
+    ];
+
+    const result = await db.query(updateQuery, values);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Case not found.' });
+    }
+
+    await logActivity({
+      caseId: id,
+      userId: req.user.id,
+      actionType: 'update',
+      entityType: 'case',
+      entityId: id,
+      details: { updated_fields: Object.keys(req.body) },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Case updated successfully.',
+      case: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteCase = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const caseCheck = await db.query(
+      'SELECT id, created_by, case_number FROM cases WHERE id = $1',
+      [id]
+    );
+    if (caseCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Case not found.' });
+    }
+
+    const targetCase = caseCheck.rows[0];
+    if (req.user.role !== 'admin' && targetCase.created_by !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only the case creator or an administrator can permanently delete this case.'
+      });
+    }
+
+    await db.query('DELETE FROM cases WHERE id = $1', [id]);
+    await logActivity({
+      caseId: id,
+      userId: req.user.id,
+      actionType: 'delete',
+      entityType: 'case',
+      entityId: id,
+      details: { case_number: targetCase.case_number },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Case and associated records deleted successfully.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
