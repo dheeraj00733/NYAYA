@@ -87,3 +87,118 @@ exports.uploadDocument = async (req, res, next) => {
   }
 };
 
+exports.getDocuments = async (req, res, next) => {
+  try {
+    const { case_id, category, search, status } = req.query;
+    const params = [];
+    const whereConditions = [];
+
+    // Authorization check: Admins see all, others see cases they have access to
+    if (req.user.role !== 'admin') {
+      params.push(req.user.id);
+      whereConditions.push(`EXISTS (
+        SELECT 1 FROM cases c
+        WHERE c.id = ld.case_id AND (
+          c.created_by = $${params.length} OR
+          EXISTS (SELECT 1 FROM case_members cm WHERE cm.case_id = c.id AND cm.user_id = $${params.length})
+        )
+      )`);
+    }
+
+    if (case_id) {
+      params.push(case_id);
+      whereConditions.push(`ld.case_id = $${params.length}`);
+    }
+
+    if (category) {
+      params.push(category);
+      whereConditions.push(`ld.document_category = $${params.length}`);
+    }
+
+    if (status) {
+      params.push(status);
+      whereConditions.push(`ld.processing_status = $${params.length}`);
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      whereConditions.push(`(ld.title ILIKE $${params.length} OR ld.file_name ILIKE $${params.length})`);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const query = `
+      SELECT
+        ld.*,
+        c.case_number,
+        c.title AS case_title,
+        u.full_name AS uploader_name,
+        (SELECT COUNT(*) FROM document_chunks dc WHERE dc.document_id = ld.id) AS chunks_count,
+        (SELECT COUNT(*) FROM extracted_facts ef WHERE ef.document_id = ld.id) AS facts_count
+      FROM legal_documents ld
+      JOIN cases c ON ld.case_id = c.id
+      LEFT JOIN users u ON ld.uploaded_by = u.id
+      ${whereClause}
+      ORDER BY ld.created_at DESC
+    `;
+
+    const result = await db.query(query, params);
+
+    return res.json({
+      success: true,
+      documents: result.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getDocumentById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const docQuery = `
+      SELECT
+        ld.*,
+        c.case_number,
+        c.title AS case_title,
+        c.court_name,
+        u.full_name AS uploader_name
+      FROM legal_documents ld
+      JOIN cases c ON ld.case_id = c.id
+      LEFT JOIN users u ON ld.uploaded_by = u.id
+      WHERE ld.id = $1
+    `;
+    const docResult = await db.query(docQuery, [id]);
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Document not found.' });
+    }
+
+    const document = docResult.rows[0];
+
+    // Fetch facts associated with this document
+    const factsQuery = `
+      SELECT * FROM extracted_facts WHERE document_id = $1 ORDER BY source_page ASC, confidence_score DESC
+    `;
+    const factsResult = await db.query(factsQuery, [id]);
+
+    // Fetch chunks count
+    const chunksCountResult = await db.query(
+      'SELECT COUNT(*) AS total_chunks FROM document_chunks WHERE document_id = $1',
+      [id]
+    );
+
+    return res.json({
+      success: true,
+      document: {
+        ...document,
+        facts: factsResult.rows,
+        chunks_count: parseInt(chunksCountResult.rows[0].total_chunks, 10)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
