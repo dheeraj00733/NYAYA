@@ -280,3 +280,52 @@ exports.deleteDocument = async (req, res, next) => {
   }
 };
 
+exports.summarizeDocument = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const docCheck = await db.query(
+      'SELECT id, case_id, file_path, title, summary_text FROM legal_documents WHERE id = $1',
+      [id]
+    );
+
+    if (docCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Document not found.' });
+    }
+
+    const document = docCheck.rows[0];
+
+    // Invoke AI service
+    const summaryResponse = await AIService.summarizeDocument(document.id);
+
+    // Save summary in legal_documents
+    const summaryText = typeof summaryResponse === 'string' ? summaryResponse : summaryResponse.summary || JSON.stringify(summaryResponse);
+
+    await db.query(
+      `UPDATE legal_documents
+       SET summary_text = $1, summary_generated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [summaryText, id]
+    );
+
+    await logActivity({
+      caseId: document.case_id,
+      userId: req.user.id,
+      actionType: 'summarize',
+      entityType: 'document',
+      entityId: id,
+      details: { title: document.title },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Summary generated successfully.',
+      summary: summaryText,
+      structured_data: summaryResponse.structured_data || null
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
