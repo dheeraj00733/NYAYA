@@ -108,3 +108,53 @@ export default function DocumentViewer() {
         activeChatId = chatRes.chat.id;
         document.active_chat_id = activeChatId;
       }
+
+       const res = await api.sendMessage(activeChatId, { content: userText });
+      if (res.success) {
+        setChatMessages(prev => [
+          ...prev,
+          {
+            sender_type: 'assistant',
+            content: res.assistant_message.content,
+            citations: res.citations || []
+          }
+        ]);
+      }
+    } catch (err) {
+      setChatMessages(prev => [
+        ...prev,
+        {
+          sender_type: 'assistant',
+          content: `Query failed: ${err.message}`
+        }
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-3 text-xs text-slate-500">Opening document viewer...</p>
+      </div>
+    );
+  }
+
+  if (error || !document) {
+    return (
+      <div className="p-8 bg-white rounded-2xl border border-rose-200 text-center max-w-lg mx-auto mt-12">
+        <AlertCircle className="w-8 h-8 text-rose-500 mx-auto mb-2" />
+        <h3 className="text-base font-bold text-slate-900">Document Unavailable</h3>
+        <p className="text-xs text-slate-600 mt-1 mb-4">{error || 'Document not found.'}</p>
+        <button
+          onClick={() => navigate('/documents')}
+          className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold"
+        >
+          Return to Documents
+        </button>
+      </div>
+    );
+  }
+
