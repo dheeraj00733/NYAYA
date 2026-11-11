@@ -34,3 +34,21 @@ def init_db_pool():
         pool = None
 
 @contextmanager
+def get_db_connection():
+    global pool
+    if pool is None:
+        init_db_pool()
+    if pool is None:
+        raise ConnectionError("Database pool is unavailable (PostgreSQL offline or psycopg2 not installed).")
+    
+    conn = pool.getconn()
+    try:
+        # Register pgvector type handler if available
+        try:
+            from pgvector.psycopg2 import register_vector
+            register_vector(conn)
+        except Exception:
+            pass
+        yield conn
+    finally:
+        pool.putconn(conn)
