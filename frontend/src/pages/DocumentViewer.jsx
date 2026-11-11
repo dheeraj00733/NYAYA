@@ -157,4 +157,48 @@ export default function DocumentViewer() {
       </div>
     );
   }
+  const downloadUrl = api.getDocumentDownloadUrl(document.id);
 
+  return (
+    <div className="flex flex-col h-[calc(100vh-6rem)] -m-6 overflow-hidden bg-slate-100">
+      {/* Top Document Header Bar */}
+      <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between flex-shrink-0 z-20">
+        <div className="flex items-center space-x-3 overflow-hidden">
+          <button
+            onClick={() => navigate('/documents')}
+            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="truncate">
+            <h2 className="text-sm font-bold text-slate-900 truncate flex items-center space-x-2">
+              <span className="truncate">{document.title}</span>
+              <Badge variant={document.document_category} size="xs">{document.document_category}</Badge>
+            </h2>
+            <p className="text-[11px] text-slate-500 truncate">
+              {document.case_number} • {document.case_title} ({document.total_pages || 1} pages)
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleRegenerateSummary}
+            disabled={summarizing}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{summarizing ? 'Analyzing...' : 'Re-Summarize'}</span>
+          </button>
+
+          <a
+            href={downloadUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download</span>
+          </a>
+        </div>
+      </div>
