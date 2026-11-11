@@ -202,3 +202,88 @@ export default function DocumentViewer() {
           </a>
         </div>
       </div>
+
+       {/* Main Split Screen Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Pane: Embedded PDF Reader */}
+        <div className="w-1/2 flex flex-col border-r border-slate-200 bg-slate-200/80 relative">
+          <iframe
+            src={`${downloadUrl}#toolbar=1&navpanes=0`}
+            title={document.title}
+            className="w-full h-full border-none"
+          />
+        </div>
+
+        {/* Right Pane: AI Intelligence Sidecar (Summary, Facts, Q&A) */}
+        <div className="w-1/2 flex flex-col bg-white overflow-hidden">
+          {/* Right Pane Tabs */}
+          <div className="h-11 border-b border-slate-200 px-6 flex items-center space-x-6 text-xs font-bold bg-white flex-shrink-0">
+            <button
+              onClick={() => setActiveRightTab('summary')}
+              className={`h-full flex items-center space-x-2 border-b-2 transition-all ${
+                activeRightTab === 'summary'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-blue-500" />
+              <span>AI Legal Summary</span>
+            </button>
+
+            <button
+              onClick={() => setActiveRightTab('facts')}
+              className={`h-full flex items-center space-x-2 border-b-2 transition-all ${
+                activeRightTab === 'facts'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Scale className="w-4 h-4 text-emerald-500" />
+              <span>Extracted Facts ({document.facts?.length || 0})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveRightTab('chat')}
+              className={`h-full flex items-center space-x-2 border-b-2 transition-all ${
+                activeRightTab === 'chat'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-purple-500" />
+              <span>Ask Document (RAG)</span>
+            </button>
+          </div>
+
+          {/* Right Tab Content Viewport */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {/* Tab 1: AI Summary */}
+            {activeRightTab === 'summary' && (
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-100 flex items-start justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider">Automated Legal Synthesis</h4>
+                    <p className="text-[11px] text-blue-700 mt-0.5">
+                      Ground truth facts extracted across all pages. Missing items marked explicitly.
+                    </p>
+                  </div>
+                  <Badge variant="completed" size="xs">Verified Grounding</Badge>
+                </div>
+
+                {document.summary_text ? (
+                  <div className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-normal space-y-3 prose prose-slate max-w-none">
+                    {document.summary_text}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-slate-400 text-xs">
+                    <p>No summary generated yet for this document.</p>
+                    <button
+                      onClick={handleRegenerateSummary}
+                      className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold"
+                    >
+                      Generate Summary Now
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
