@@ -65,3 +65,85 @@ exports.getHearings = async (req, res, next) => {
   }
 };
 
+exports.createHearing = async (req, res, next) => {
+  const client = await db.getClient();
+  try {
+    const {
+      case_id,
+      hearing_date,
+      hearing_time,
+      court_room,
+      purpose = 'preliminary',
+      presiding_judge,
+      outcome_summary,
+      next_steps,
+      status = 'scheduled'
+    } = req.body;
+
+    if (!case_id || !hearing_date) {
+      return res.status(400).json({ success: false, error: 'case_id and hearing_date are required.' });
+    }
+
+    await client.query('BEGIN');
+
+    const insertQuery = `
+      INSERT INTO hearings (
+        case_id, hearing_date, hearing_time, court_room,
+        purpose, presiding_judge, outcome_summary, next_steps, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `;
+
+    const values = [
+      case_id,
+      hearing_date,
+      hearing_time || null,
+      court_room || null,
+      purpose,
+      presiding_judge || null,
+      outcome_summary || null,
+      next_steps || null,
+      status
+    ];
+
+    const result = await client.query(insertQuery, values);
+    const newHearing = result.rows[0];
+
+    // If status is 'scheduled' and date is today or future, check if it's the next hearing date for the case
+    if (status === 'scheduled') {
+      await client.query(
+        `UPDATE cases
+         SET next_hearing_date = (
+           SELECT MIN(hearing_date) FROM hearings
+           WHERE case_id = $1 AND status = 'scheduled' AND hearing_date >= CURRENT_DATE
+         )
+         WHERE id = $1`,
+        [case_id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    await logActivity({
+      caseId: case_id,
+      userId: req.user.id,
+      actionType: 'create',
+      entityType: 'hearing',
+      entityId: newHearing.id,
+      details: { hearing_date, purpose, court_room },
+      ipAddress: req.ip
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Hearing scheduled successfully.',
+      hearing: newHearing
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+};
+
