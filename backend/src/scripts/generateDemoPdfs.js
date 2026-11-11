@@ -42,3 +42,35 @@ function createSimplePdf(pagesText) {
     const pageIdx = addObj(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontIdx} 0 R >> >> /Contents ${contentIdx} 0 R >>`);
     pageObjIndices.push(pageIdx);
   });
+
+   // Re-encode Pages container
+  const kidsStr = pageObjIndices.map(idx => `${idx} 0 R`).join(' ');
+  const pagesObjStr = `<< /Type /Pages /Kids [ ${kidsStr} ] /Count ${pageObjIndices.length} >>`;
+
+  // We rewrite objects[1] (Obj 2: Pages)
+  objects[1] = `2 0 obj\n${pagesObjStr}\nendobj\n`;
+
+  // Recalculate offsets properly
+  let runningOffset = 9;
+  const finalOffsets = [0]; // 0000000000 65535 f
+  for (let i = 0; i < objects.length; i++) {
+    finalOffsets.push(runningOffset);
+    runningOffset += Buffer.byteLength(objects[i], 'utf8');
+  }
+
+  // Build xref
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= objects.length; i++) {
+    const off = finalOffsets[i].toString().padStart(10, '0');
+    xref += `${off} 00000 n \n`;
+  }
+
+  const trailer = `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${runningOffset}\n%%EOF\n`;
+
+  return Buffer.from(`%PDF-1.4\n${objects.join('')}${xref}${trailer}`, 'utf8');
+}
+
+const uploadsDir = path.resolve(__dirname, '../../../storage/uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
