@@ -56,3 +56,14 @@ export default function DocumentViewer() {
       setLoading(false);
     }
   };
+   const handleVerifyFact = async (factId) => {
+    try {
+      const res = await api.verifyFact(factId, { is_verified: true });
+      if (res.success) {
+        showSuccess('Fact verified by counsel.');
+        fetchDocumentDetails();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to verify fact.');
+    }
+  };
