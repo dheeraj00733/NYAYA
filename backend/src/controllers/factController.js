@@ -191,3 +191,33 @@ exports.verifyFact = async (req, res, next) => {
   }
 };
 
+exports.deleteFact = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const factCheck = await db.query('SELECT id, case_id, key_field FROM extracted_facts WHERE id = $1', [id]);
+    if (factCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Fact not found.' });
+    }
+
+    await db.query('DELETE FROM extracted_facts WHERE id = $1', [id]);
+
+    await logActivity({
+      caseId: factCheck.rows[0].case_id,
+      userId: req.user.id,
+      actionType: 'delete',
+      entityType: 'fact',
+      entityId: id,
+      details: { key_field: factCheck.rows[0].key_field },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Extracted fact deleted.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
