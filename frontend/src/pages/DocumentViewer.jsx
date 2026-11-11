@@ -41,3 +41,18 @@ export default function DocumentViewer() {
   useEffect(() => {
     fetchDocumentDetails();
   }, [id]);
+
+  const fetchDocumentDetails = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.getDocumentById(id);
+      if (res.success) {
+        setDocument(res.document);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to load document.');
+    } finally {
+      setLoading(false);
+    }
+  };
