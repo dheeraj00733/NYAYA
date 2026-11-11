@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # 1. PostgreSQL 16 with pgvector Extension
+  # ============================================================================
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: nyayaflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-nyayaflow_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seeds/001_seed_demo_data.sql:/docker-entrypoint-initdb.d/02_seeds.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-nyayaflow_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nyayaflow_network
+
+  # ============================================================================
+  # 2. Python FastAPI AI Microservice (PyMuPDF, Embeddings, RAG)
+  # ============================================================================
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: nyayaflow-ai-service
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-nyayaflow_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:latest}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+      AI_SERVICE_PORT: 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./storage/uploads:/app/storage/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - nyayaflow_network
+
+  # ============================================================================
+  # 3. Node.js Express Backend
+  # ============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nyayaflow-backend
+    restart: unless-stopped
+    environment:
+      PORT: 5001
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-nyayaflow_super_secret_jwt_key_development_2025}
+      JWT_EXPIRES_IN: 7d
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-nyayaflow_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      AI_SERVICE_URL: http://ai-service:8000
+      STORAGE_DIR: /app/storage/uploads
+      MAX_FILE_SIZE_MB: 50
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./storage/uploads:/app/storage/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - nyayaflow_network
+
+  # ============================================================================
+  # 4. React Frontend (Nginx Production Server)
+  # ============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nyayaflow-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - nyayaflow_network
+
+volumes:
+  postgres_data:
+    name: nyayaflow_postgres_data
+
+networks:
+  nyayaflow_network:
+    name: nyayaflow_network
+    driver: bridge

@@ -6,3 +6,7 @@ dist/
 build/
 .DS_Store
 generated/
+venv/
+__pycache__/
+*.pyc
+storage/uploads/*.pdf
