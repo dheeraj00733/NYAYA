@@ -287,3 +287,57 @@ export default function DocumentViewer() {
                 )}
               </div>
             )}
+
+             {/* Tab 2: Extracted Facts */}
+            {activeRightTab === 'facts' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-xs text-slate-500">
+                  <span>Structured Entities & Statutes</span>
+                  <span>Page & Verification</span>
+                </div>
+
+                {document.facts && document.facts.length > 0 ? (
+                  document.facts.map((fact) => (
+                    <div
+                      key={fact.id}
+                      className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <Badge variant="default" size="xs">{fact.key_field}</Badge>
+                        <span className="text-[11px] font-semibold text-slate-400">Page {fact.source_page}</span>
+                      </div>
+
+                      <p className="text-xs font-bold text-slate-900">{fact.fact_value}</p>
+
+                      {fact.excerpt && (
+                        <p className="text-[11px] text-slate-500 italic bg-white p-2 rounded-lg border border-slate-100">
+                          "{fact.excerpt}"
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
+                        <span className="text-slate-400">Confidence: {(fact.confidence_score * 100).toFixed(0)}%</span>
+                        {fact.is_verified ? (
+                          <span className="flex items-center space-x-1 text-emerald-600 font-semibold">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Verified</span>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleVerifyFact(fact.id)}
+                            className="text-blue-600 hover:text-blue-700 font-semibold"
+                          >
+                            Mark Verified
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-slate-400 text-xs">
+                    No facts extracted for this document.
+                  </div>
+                )}
+              </div>
+            )}
+
