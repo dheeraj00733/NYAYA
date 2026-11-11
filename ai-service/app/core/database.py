@@ -81,3 +81,46 @@ def save_document_chunks(document_id: str, chunks: list):
     except Exception as e:
         logger.error(f"Failed to persist document chunks: {e}")
         return False
+def search_similar_chunks(query_embedding: list, case_id: str, document_id: str = None, top_k: int = 4):
+    """
+    Executes cosine distance vector search (<=>) on document_chunks joined with legal_documents
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                doc_filter = "AND dc.document_id = %s" if document_id else ""
+                query = f"""
+                    SELECT 
+                        dc.id, dc.document_id, dc.chunk_index, dc.page_number, dc.content,
+                        ld.title AS document_title, ld.file_name,
+                        1 - (dc.embedding <=> %s::vector) AS similarity_score
+                    FROM document_chunks dc
+                    JOIN legal_documents ld ON dc.document_id = ld.id
+                    WHERE ld.case_id = %s {doc_filter}
+                    ORDER BY dc.embedding <=> %s::vector ASC
+                    LIMIT %s
+                """
+                full_params = [query_embedding, case_id]
+                if document_id:
+                    full_params.append(document_id)
+                full_params.extend([query_embedding, top_k])
+                
+                cur.execute(query, tuple(full_params))
+                rows = cur.fetchall()
+                
+                results = []
+                for r in rows:
+                    results.append({
+                        "chunk_id": str(r[0]),
+                        "document_id": str(r[1]),
+                        "chunk_index": r[2],
+                        "page_number": r[3],
+                        "content": r[4],
+                        "document_title": r[5],
+                        "file_name": r[6],
+                        "similarity_score": round(float(r[7]), 4)
+                    })
+                return results
+    except Exception as e:
+        logger.warning(f"Vector search failed or DB offline: {e}")
+        return []
