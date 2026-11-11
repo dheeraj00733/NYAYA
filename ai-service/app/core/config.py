@@ -15,3 +15,23 @@ try:
         DB_USER: str = os.getenv("DB_USER", "postgres")
         DB_PASSWORD: str = os.getenv("DB_PASSWORD", "postgres")
         
+        OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:latest")
+        
+        # Embeddings
+        EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
+        EMBEDDING_DIMENSION: int = 384
+        
+        # Chunker settings
+        CHUNK_SIZE: int = 400
+        CHUNK_OVERLAP: int = 50
+        
+        # OCR
+        OCR_ENABLED: bool = True
+        
+        @property
+        def database_url(self) -> str:
+            return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+except ImportError:
+    # Pure Python standard library fallback when pydantic_settings is not installed in global env
