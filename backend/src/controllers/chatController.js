@@ -97,3 +97,30 @@ exports.createChat = async (req, res, next) => {
   }
 };
 
+exports.getMessages = async (req, res, next) => {
+  try {
+    const { chatId } = req.params;
+
+    // Verify chat ownership or case membership
+    const chatCheck = await db.query('SELECT id, case_id, user_id FROM chats WHERE id = $1', [chatId]);
+    if (chatCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Chat session not found.' });
+    }
+
+    const query = `
+      SELECT * FROM messages
+      WHERE chat_id = $1
+      ORDER BY created_at ASC
+    `;
+
+    const result = await db.query(query, [chatId]);
+
+    return res.json({
+      success: true,
+      messages: result.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
