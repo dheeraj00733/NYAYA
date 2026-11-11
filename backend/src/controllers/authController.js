@@ -84,3 +84,56 @@ exports.register = async (req, res, next) => {
   }
 };
 
+exports.login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required.' });
+    }
+
+    const result = await db.query(
+      'SELECT id, email, password_hash, full_name, role, phone, bar_council_id, organization, avatar_url, is_active FROM users WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
+    const user = result.rows[0];
+
+    if (!user.is_active) {
+      return res.status(403).json({ success: false, error: 'Account has been deactivated. Please contact support.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
+    const token = generateToken(user);
+
+    // Remove password_hash from response
+    delete user.password_hash;
+
+    await logActivity({
+      userId: user.id,
+      actionType: 'view',
+      entityType: 'user',
+      entityId: user.id,
+      details: { action: 'user_login' },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Login successful.',
+      user,
+      token
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
