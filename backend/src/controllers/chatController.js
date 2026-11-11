@@ -124,3 +124,87 @@ exports.getMessages = async (req, res, next) => {
   }
 };
 
+exports.sendMessage = async (req, res, next) => {
+  const client = await db.getClient();
+  try {
+    const { chatId } = req.params;
+    const { content, model } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ success: false, error: 'Message content is required.' });
+    }
+
+    const chatQuery = await db.query('SELECT * FROM chats WHERE id = $1', [chatId]);
+    if (chatQuery.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Chat session not found.' });
+    }
+
+    const chat = chatQuery.rows[0];
+    const activeModel = model || chat.model_name || 'qwen2.5:latest';
+
+    await client.query('BEGIN');
+
+    // 1. Record User Message
+    const userMsgInsert = `
+      INSERT INTO messages (chat_id, sender_type, content)
+      VALUES ($1, 'user', $2)
+      RETURNING *
+    `;
+    const userMsgRes = await client.query(userMsgInsert, [chatId, content.trim()]);
+    const userMessage = userMsgRes.rows[0];
+
+    // 2. Query RAG Pipeline via AI Service
+    let ragResult;
+    try {
+      ragResult = await AIService.queryRag({
+        query: content.trim(),
+        caseId: chat.case_id,
+        documentId: chat.document_id,
+        topK: 4,
+        model: activeModel
+      });
+    } catch (aiErr) {
+      console.warn('[RAG Query Warning]: AI Service failed, generating context-aware fallback', aiErr.message);
+      ragResult = {
+        answer: "I could not reach the local AI inference engine to synthesize an answer. Please verify that the AI service and Ollama are active. (Error: " + aiErr.message + ")",
+        citations: [],
+        retrieved_chunk_ids: []
+      };
+    }
+
+    // 3. Record Assistant Response with Citations
+    const assistantMsgInsert = `
+      INSERT INTO messages (chat_id, sender_type, content, citations, retrieved_chunk_ids)
+      VALUES ($1, 'assistant', $2, $3, $4)
+      RETURNING *
+    `;
+    const citationsJson = JSON.stringify(ragResult.citations || []);
+    const chunkIdsJson = JSON.stringify(ragResult.retrieved_chunk_ids || []);
+
+    const assistantMsgRes = await client.query(assistantMsgInsert, [
+      chatId,
+      ragResult.answer,
+      citationsJson,
+      chunkIdsJson
+    ]);
+    const assistantMessage = assistantMsgRes.rows[0];
+
+    // 4. Update Chat Timestamp
+    await client.query('UPDATE chats SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [chatId]);
+
+    await client.query('COMMIT');
+
+    return res.status(201).json({
+      success: true,
+      user_message: userMessage,
+      assistant_message: assistantMessage,
+      citations: ragResult.citations || []
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+};
+
