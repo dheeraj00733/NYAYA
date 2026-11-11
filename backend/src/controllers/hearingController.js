@@ -147,3 +147,123 @@ exports.createHearing = async (req, res, next) => {
   }
 };
 
+exports.updateHearing = async (req, res, next) => {
+  const client = await db.getClient();
+  try {
+    const { id } = req.params;
+    const {
+      hearing_date,
+      hearing_time,
+      court_room,
+      purpose,
+      presiding_judge,
+      outcome_summary,
+      next_steps,
+      status
+    } = req.body;
+
+    await client.query('BEGIN');
+
+    const updateQuery = `
+      UPDATE hearings
+      SET
+        hearing_date = COALESCE($1, hearing_date),
+        hearing_time = COALESCE($2, hearing_time),
+        court_room = COALESCE($3, court_room),
+        purpose = COALESCE($4, purpose),
+        presiding_judge = COALESCE($5, presiding_judge),
+        outcome_summary = COALESCE($6, outcome_summary),
+        next_steps = COALESCE($7, next_steps),
+        status = COALESCE($8, status),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
+      RETURNING *
+    `;
+
+    const values = [
+      hearing_date,
+      hearing_time,
+      court_room,
+      purpose,
+      presiding_judge,
+      outcome_summary,
+      next_steps,
+      status,
+      id
+    ];
+
+    const result = await client.query(updateQuery, values);
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Hearing not found.' });
+    }
+
+    const updatedHearing = result.rows[0];
+
+    // Recalculate next hearing date on case
+    await client.query(
+      `UPDATE cases
+       SET next_hearing_date = (
+         SELECT MIN(hearing_date) FROM hearings
+         WHERE case_id = $1 AND status = 'scheduled' AND hearing_date >= CURRENT_DATE
+       )
+       WHERE id = $1`,
+      [updatedHearing.case_id]
+    );
+
+    await client.query('COMMIT');
+
+    await logActivity({
+      caseId: updatedHearing.case_id,
+      userId: req.user.id,
+      actionType: 'update',
+      entityType: 'hearing',
+      entityId: id,
+      details: { status: updatedHearing.status, outcome: updatedHearing.outcome_summary },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Hearing record updated.',
+      hearing: updatedHearing
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally {
+    client.release();
+  }
+};
+
+exports.deleteHearing = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const hearingCheck = await db.query('SELECT id, case_id FROM hearings WHERE id = $1', [id]);
+    if (hearingCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Hearing not found.' });
+    }
+
+    const { case_id } = hearingCheck.rows[0];
+    await db.query('DELETE FROM hearings WHERE id = $1', [id]);
+
+    // Recalculate next hearing date
+    await db.query(
+      `UPDATE cases
+       SET next_hearing_date = (
+         SELECT MIN(hearing_date) FROM hearings
+         WHERE case_id = $1 AND status = 'scheduled' AND hearing_date >= CURRENT_DATE
+       )
+       WHERE id = $1`,
+      [case_id]
+    );
+
+    return res.json({
+      success: true,
+      message: 'Hearing record removed.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};

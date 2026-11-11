@@ -220,4 +220,3 @@ exports.deleteFact = async (req, res, next) => {
     next(error);
   }
 };
-

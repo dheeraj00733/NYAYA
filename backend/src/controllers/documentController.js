@@ -328,4 +328,3 @@ exports.summarizeDocument = async (req, res, next) => {
     next(error);
   }
 };
-
