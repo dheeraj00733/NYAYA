@@ -131,3 +131,63 @@ exports.createFact = async (req, res, next) => {
   }
 };
 
+exports.verifyFact = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { is_verified = true, corrected_value, key_field } = req.body;
+
+    const factCheck = await db.query('SELECT * FROM extracted_facts WHERE id = $1', [id]);
+    if (factCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Fact not found.' });
+    }
+
+    const currentFact = factCheck.rows[0];
+    const newFactValue = corrected_value !== undefined ? corrected_value.trim() : currentFact.fact_value;
+    const newKeyField = key_field !== undefined ? key_field.trim() : currentFact.key_field;
+
+    const updateQuery = `
+      UPDATE extracted_facts
+      SET
+        fact_value = $1,
+        key_field = $2,
+        is_verified = $3,
+        verified_by = $4,
+        verified_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      RETURNING *
+    `;
+
+    const result = await db.query(updateQuery, [
+      newFactValue,
+      newKeyField,
+      is_verified,
+      req.user.id,
+      id
+    ]);
+
+    await logActivity({
+      caseId: currentFact.case_id,
+      userId: req.user.id,
+      actionType: 'verify',
+      entityType: 'fact',
+      entityId: id,
+      details: {
+        is_verified,
+        was_corrected: newFactValue !== currentFact.fact_value,
+        original_value: currentFact.fact_value,
+        new_value: newFactValue
+      },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Fact reviewed and updated successfully.',
+      fact: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
