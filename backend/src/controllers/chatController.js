@@ -208,3 +208,27 @@ exports.sendMessage = async (req, res, next) => {
   }
 };
 
+exports.deleteChat = async (req, res, next) => {
+  try {
+    const { chatId } = req.params;
+
+    const chatCheck = await db.query('SELECT id, user_id FROM chats WHERE id = $1', [chatId]);
+    if (chatCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Chat session not found.' });
+    }
+
+    if (req.user.role !== 'admin' && chatCheck.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'Unauthorized to delete this chat session.' });
+    }
+
+    await db.query('DELETE FROM chats WHERE id = $1', [chatId]);
+
+    return res.json({
+      success: true,
+      message: 'Chat session deleted.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
