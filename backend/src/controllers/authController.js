@@ -137,3 +137,89 @@ exports.login = async (req, res, next) => {
   }
 };
 
+exports.getMe = async (req, res, next) => {
+  try {
+    const result = await db.query(
+      `SELECT u.id, u.email, u.full_name, u.role, u.phone, u.bar_council_id, u.organization, u.avatar_url, u.created_at,
+              (SELECT COUNT(*) FROM case_members cm WHERE cm.user_id = u.id) AS assigned_cases_count
+       FROM users u WHERE u.id = $1`,
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found.' });
+    }
+
+    return res.json({
+      success: true,
+      user: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const { full_name, phone, organization, bar_council_id, avatar_url } = req.body;
+
+    const query = `
+      UPDATE users
+      SET full_name = COALESCE($1, full_name),
+          phone = COALESCE($2, phone),
+          organization = COALESCE($3, organization),
+          bar_council_id = COALESCE($4, bar_council_id),
+          avatar_url = COALESCE($5, avatar_url),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6
+      RETURNING id, email, full_name, role, phone, bar_council_id, organization, avatar_url, updated_at
+    `;
+    const values = [full_name, phone, organization, bar_council_id, avatar_url, req.user.id];
+    const result = await db.query(query, values);
+
+    await logActivity({
+      userId: req.user.id,
+      actionType: 'update',
+      entityType: 'user',
+      entityId: req.user.id,
+      details: { updated_fields: Object.keys(req.body) },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Profile updated successfully.',
+      user: result.rows[0]
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getAllUsers = async (req, res, next) => {
+  try {
+    const { role, search } = req.query;
+    let query = 'SELECT id, email, full_name, role, organization, bar_council_id FROM users WHERE is_active = TRUE';
+    const params = [];
+
+    if (role) {
+      params.push(role);
+      query += ` AND role = $${params.length}`;
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (full_name ILIKE $${params.length} OR email ILIKE $${params.length} OR organization ILIKE $${params.length})`;
+    }
+
+    query += ' ORDER BY full_name ASC LIMIT 50';
+
+    const result = await db.query(query, params);
+    return res.json({
+      success: true,
+      users: result.rows
+    });
+  } catch (error) {
+    next(error);
+  }
+};
