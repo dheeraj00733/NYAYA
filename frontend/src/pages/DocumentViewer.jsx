@@ -341,3 +341,102 @@ export default function DocumentViewer() {
               </div>
             )}
 
+             {/* Tab 3: Document RAG Chat */}
+            {activeRightTab === 'chat' && (
+              <div className="flex flex-col h-full -m-6 p-6">
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  <div className="p-3 bg-purple-50 text-purple-900 rounded-xl text-xs border border-purple-100">
+                    <p className="font-semibold flex items-center space-x-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Document Scoped RAG</span>
+                    </p>
+                    <p className="text-[11px] text-purple-700 mt-1">
+                      Answers are grounded strictly in <span className="font-bold">{document.title}</span> with page citations.
+                    </p>
+                  </div>
+
+                  {chatMessages.length === 0 && (
+                    <div className="text-center py-8 text-xs text-slate-400 space-y-2">
+                      <p>Ask questions specific to this legal document:</p>
+                      <div className="flex flex-col space-y-1.5 text-left max-w-xs mx-auto">
+                        <button
+                          onClick={() => setChatInput("What are the main grounds presented in this petition?")}
+                          className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-700 border border-slate-200 text-xs"
+                        >
+                          "What are the main grounds presented?"
+                        </button>
+                        <button
+                          onClick={() => setChatInput("What interim relief was ordered by the court?")}
+                          className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-700 border border-slate-200 text-xs"
+                        >
+                          "What interim relief was ordered?"
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {chatMessages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={`flex flex-col ${msg.sender_type === 'user' ? 'items-end' : 'items-start'}`}
+                    >
+                      <div
+                        className={`p-3.5 rounded-2xl max-w-[85%] text-xs leading-relaxed ${
+                          msg.sender_type === 'user'
+                            ? 'bg-blue-600 text-white rounded-br-none'
+                            : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200'
+                        }`}
+                      >
+                        <p className="whitespace-pre-line">{msg.content}</p>
+
+                        {/* Citations list */}
+                        {msg.citations && msg.citations.length > 0 && (
+                          <div className="mt-3 pt-2 border-t border-slate-200/60 space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                              Document Citations:
+                            </span>
+                            {msg.citations.map((cite, cIdx) => (
+                              <div key={cIdx} className="text-[11px] text-blue-700 bg-white/80 p-2 rounded border border-slate-200">
+                                <span className="font-bold">Page {cite.page_number}:</span> {cite.excerpt}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {chatLoading && (
+                    <div className="flex items-center space-x-2 text-xs text-slate-400">
+                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Retrieving chunks & generating grounded answer...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input box */}
+                <form onSubmit={handleSendDocQuery} className="mt-4 pt-3 border-t border-slate-200 flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Ask about this document..."
+                    className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                  <button
+                    type="submit"
+                    disabled={chatLoading || !chatInput.trim()}
+                    className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
