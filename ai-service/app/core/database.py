@@ -52,3 +52,32 @@ def get_db_connection():
         yield conn
     finally:
         pool.putconn(conn)
+        
+def save_document_chunks(document_id: str, chunks: list):
+    """
+    Inserts chunks and their vector embeddings into document_chunks.
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM document_chunks WHERE document_id = %s", (document_id,))
+                insert_query = """
+                    INSERT INTO document_chunks (
+                        document_id, chunk_index, page_number, content, token_count, embedding
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                for c in chunks:
+                    cur.execute(insert_query, (
+                        document_id,
+                        c['chunk_index'],
+                        c['page_number'],
+                        c['content'],
+                        c['token_count'],
+                        c['embedding']
+                    ))
+                conn.commit()
+                logger.info(f"Saved {len(chunks)} chunks with embeddings for document {document_id}")
+                return True
+    except Exception as e:
+        logger.error(f"Failed to persist document chunks: {e}")
+        return False
