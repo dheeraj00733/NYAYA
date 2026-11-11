@@ -202,3 +202,81 @@ exports.getDocumentById = async (req, res, next) => {
   }
 };
 
+exports.downloadDocument = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query('SELECT file_path, file_name, mime_type FROM legal_documents WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Document not found.' });
+    }
+
+    const { file_path, file_name, mime_type } = result.rows[0];
+
+    const resolvedPath = path.isAbsolute(file_path)
+      ? file_path
+      : path.resolve(__dirname, '../../../', file_path);
+
+    if (!fs.existsSync(resolvedPath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'The requested physical document file is missing or has been relocated.'
+      });
+    }
+
+    res.setHeader('Content-Type', mime_type || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${file_name}"`);
+
+    const fileStream = fs.createReadStream(resolvedPath);
+    fileStream.pipe(res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.deleteDocument = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await db.query(
+      'SELECT id, case_id, file_path, file_name, title FROM legal_documents WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Document not found.' });
+    }
+
+    const document = result.rows[0];
+
+    // Remove database record (cascades to chunks and facts)
+    await db.query('DELETE FROM legal_documents WHERE id = $1', [id]);
+
+    // Remove local file
+    if (fs.existsSync(document.file_path)) {
+      try {
+        fs.unlinkSync(document.file_path);
+      } catch (err) {
+        console.warn('[File Deletion Warning]: Could not unlink file', err.message);
+      }
+    }
+
+    await logActivity({
+      caseId: document.case_id,
+      userId: req.user.id,
+      actionType: 'delete',
+      entityType: 'document',
+      entityId: id,
+      details: { title: document.title, file_name: document.file_name },
+      ipAddress: req.ip
+    });
+
+    return res.json({
+      success: true,
+      message: 'Document and its vector embeddings deleted successfully.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
