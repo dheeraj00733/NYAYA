@@ -95,3 +95,60 @@ export default function HearingTimeline() {
       showError(err.message || 'Failed to schedule hearing.');
     }
   };
+  const upcomingHearings = hearings.filter(h => new Date(h.hearing_date) >= new Date(new Date().setHours(0,0,0,0)));
+  const pastHearings = hearings.filter(h => new Date(h.hearing_date) < new Date(new Date().setHours(0,0,0,0)));
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+            Court Hearing Schedule & Timeline
+          </h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Chronological judicial proceedings, courtroom dockets, and recorded hearing outcomes
+          </p>
+        </div>
+
+        {user?.role !== 'client' && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm shadow-blue-500/20 transition-all self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Schedule Hearing</span>
+          </button>
+        )}
+      </div>
+
+      {/* Filter Row */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-3 items-center">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center space-x-1">
+          <Filter className="w-3.5 h-3.5" />
+          <span>Filter Dockets:</span>
+        </span>
+
+        <select
+          value={caseFilter}
+          onChange={(e) => setCaseFilter(e.target.value)}
+          className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 max-w-xs"
+        >
+          <option value="">All Cases</option>
+          {cases.map(c => (
+            <option key={c.id} value={c.id}>{c.case_number} - {c.title}</option>
+          ))}
+        </select>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700"
+        >
+          <option value="">All Statuses</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="completed">Completed</option>
+          <option value="adjourned">Adjourned</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
