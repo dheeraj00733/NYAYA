@@ -91,3 +91,53 @@ export default function ExtractedFacts() {
       setLoading(false);
     }
   };
+    const openEditModal = (fact) => {
+    setEditingFact(fact);
+    setEditKey(fact.key_field);
+    setEditValue(fact.fact_value);
+    setEditVerified(fact.is_verified);
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateFact = async (e) => {
+    e.preventDefault();
+    if (!editingFact) return;
+
+    try {
+      const res = await api.verifyFact(editingFact.id, {
+        is_verified: editVerified,
+        corrected_value: editValue,
+        key_field: editKey
+      });
+
+      if (res.success) {
+        showSuccess('Fact entry successfully verified and updated.');
+        setIsEditModalOpen(false);
+        fetchFacts();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to update fact.');
+    }
+  };
+
+  const handleCreateFact = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.createFact(newFact);
+      if (res.success) {
+        showSuccess('New factual entity recorded.');
+        setIsAddModalOpen(false);
+        setNewFact({
+          case_id: cases[0]?.id || '',
+          fact_type: 'legal_section',
+          key_field: '',
+          fact_value: '',
+          source_page: 1,
+          excerpt: ''
+        });
+        fetchFacts();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to create fact.');
+    }
+  };
