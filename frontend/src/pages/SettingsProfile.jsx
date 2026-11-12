@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { User, Cpu, Activity, Save } from 'lucide-react';
+import { 
+  Settings, 
+  User, 
+  Cpu, 
+  Database, 
+  Sparkles, 
+  Save, 
+  CheckCircle2, 
+  AlertCircle,
+  Activity,
+  Layers
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { api } from '../api/client';
@@ -15,9 +26,13 @@ export default function SettingsProfile() {
     bar_council_id: user?.bar_council_id || ''
   });
   const [profileSaving, setProfileSaving] = useState(false);
+
+  // Model settings
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('qwen2.5:latest');
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
+
+  // Diagnostics
   const [systemHealth, setSystemHealth] = useState(null);
   const [checkingHealth, setCheckingHealth] = useState(false);
 
@@ -34,6 +49,7 @@ export default function SettingsProfile() {
         setSelectedModel(res.active_model || 'qwen2.5:latest');
       }
 
+      // Fetch health via client
       const healthRes = await fetch('/health').then(r => r.json()).catch(() => null);
       setSystemHealth(healthRes);
     } catch (e) {
@@ -58,6 +74,7 @@ export default function SettingsProfile() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-10">
+      {/* Header */}
       <div className="pb-2 border-b border-slate-200">
         <h2 className="text-2xl font-bold tracking-tight text-slate-900">
           Settings & System Diagnostics
@@ -68,6 +85,7 @@ export default function SettingsProfile() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
+        {/* Left Column: Profile Card */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
@@ -168,6 +186,7 @@ export default function SettingsProfile() {
             </form>
           </div>
 
+          {/* AI Model Configuration Card */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
               <Cpu className="w-4 h-4 text-purple-600" />
@@ -231,63 +250,62 @@ export default function SettingsProfile() {
                     <span className="font-medium">50 tokens</span>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-                <div className="space-y-6">
-                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-slate-900 tracking-tight uppercase flex items-center space-x-1.5">
-                        <Activity className="w-4 h-4 text-emerald-600" />
-                        <span>Live Health Status</span>
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={fetchSystemDiagnostics}
-                        disabled={checkingHealth}
-                        className="text-[11px] text-blue-600 font-semibold hover:text-blue-700"
-                      >
-                        {checkingHealth ? 'Checking...' : 'Refresh'}
-                      </button>
-                    </div>
+        {/* Right Column: System Diagnostics Card */}
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight uppercase flex items-center space-x-1.5">
+                <Activity className="w-4 h-4 text-emerald-600" />
+                <span>Live Health Status</span>
+              </h3>
+              <button
+                onClick={fetchSystemDiagnostics}
+                className="text-[11px] text-blue-600 font-semibold hover:text-blue-700"
+              >
+                Refresh
+              </button>
+            </div>
 
-                    <div className="space-y-3 text-xs">
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800">PostgreSQL 16 Database</span>
-                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        </div>
-                        <p className="text-[11px] text-slate-500">12 Normalized Relational Tables</p>
-                        <p className="text-[10px] text-emerald-700 font-mono">ACID Transactions Active</p>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800">pgvector Extension</span>
-                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        </div>
-                        <p className="text-[11px] text-slate-500">HNSW Cosine Vector Indexing</p>
-                        <p className="text-[10px] text-emerald-700 font-mono">Index: idx_document_chunks_hnsw</p>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800">Python FastAPI AI Engine</span>
-                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        </div>
-                        <p className="text-[11px] text-slate-500">PyMuPDF + Tesseract OCR + RAG</p>
-                        <p className="text-[10px] text-slate-600 font-mono">Port: 8000</p>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-800">Local Ollama LLM</span>
-                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                        </div>
-                        <p className="text-[11px] text-slate-500">Local inference at localhost:11434</p>
-                        <p className="text-[10px] text-blue-700 font-mono">Zero Cloud Token Costs</p>
-                      </div>
-                    </div>
-                  </div>
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800">PostgreSQL 16 Database</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 </div>
+                <p className="text-[11px] text-slate-500">12 Normalized Relational Tables</p>
+                <p className="text-[10px] text-emerald-700 font-mono">ACID Transactions Active</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800">pgvector Extension</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                </div>
+                <p className="text-[11px] text-slate-500">HNSW Cosine Vector Indexing</p>
+                <p className="text-[10px] text-emerald-700 font-mono">Index: idx_document_chunks_hnsw</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800">Python FastAPI AI Engine</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                </div>
+                <p className="text-[11px] text-slate-500">PyMuPDF + Tesseract OCR + RAG</p>
+                <p className="text-[10px] text-slate-600 font-mono">Port: 8000</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800">Local Ollama LLM</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                </div>
+                <p className="text-[11px] text-slate-500">Local inference at localhost:11434</p>
+                <p className="text-[10px] text-blue-700 font-mono">Zero Cloud Token Costs</p>
               </div>
             </div>
           </div>

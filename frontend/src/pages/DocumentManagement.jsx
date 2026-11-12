@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { FileText, UploadCloud, Search, Sparkles, Trash2, Download, Eye } from 'lucide-react';
+import { 
+  FileText, 
+  UploadCloud, 
+  Search, 
+  Sparkles, 
+  Scale, 
+  Trash2, 
+  Download, 
+  ExternalLink,
+  Eye,
+  Filter,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 import { api } from '../api/client';
 import Badge from '../components/Badge';
 import Modal from '../components/Modal';
@@ -20,6 +33,8 @@ export default function DocumentManagement() {
   const [selectedCase, setSelectedCase] = useState(caseIdFilter);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
+
+  // Upload Modal State
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadCaseId, setUploadCaseId] = useState(caseIdFilter);
@@ -67,34 +82,6 @@ export default function DocumentManagement() {
     }
   };
 
-  const handleDelete = async (docId, title) => {
-    if (!window.confirm(`Are you sure you want to delete "${title}"? Its vector embeddings and extracted facts will be removed.`)) {
-      return;
-    }
-    try {
-      const res = await api.deleteDocument(docId);
-      if (res.success) {
-        showSuccess('Document and vector embeddings deleted.');
-        fetchDocuments();
-      }
-    } catch (err) {
-      showError(err.message || 'Failed to delete document.');
-    }
-  };
-
-  const handleTriggerSummary = async (docId) => {
-    try {
-      showInfo('Triggering AI legal summarization...');
-      const res = await api.summarizeDocument(docId);
-      if (res.success) {
-        showSuccess('AI Summary updated successfully.');
-        fetchDocuments();
-      }
-    } catch (err) {
-      showError(err.message || 'Summarization failed.');
-    }
-  };
-
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
     if (!uploadFile) {
@@ -129,6 +116,34 @@ export default function DocumentManagement() {
     }
   };
 
+  const handleDelete = async (docId, title) => {
+    if (!window.confirm(`Are you sure you want to delete "${title}"? Its vector embeddings and extracted facts will be removed.`)) {
+      return;
+    }
+    try {
+      const res = await api.deleteDocument(docId);
+      if (res.success) {
+        showSuccess('Document and vector embeddings deleted.');
+        fetchDocuments();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to delete document.');
+    }
+  };
+
+  const handleTriggerSummary = async (docId) => {
+    try {
+      showInfo('Triggering AI legal summarization...');
+      const res = await api.summarizeDocument(docId);
+      if (res.success) {
+        showSuccess('AI Summary updated successfully.');
+        fetchDocuments();
+      }
+    } catch (err) {
+      showError(err.message || 'Summarization failed.');
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       {/* Header */}
@@ -141,6 +156,7 @@ export default function DocumentManagement() {
             PDF text extraction, Tesseract OCR fallback, 384-dim semantic chunking, and pgvector storage
           </p>
         </div>
+
         {user?.role !== 'client' && (
           <button
             onClick={() => setIsUploadModalOpen(true)}
@@ -301,6 +317,7 @@ export default function DocumentManagement() {
         </div>
       )}
 
+      {/* Upload Document Modal */}
       <Modal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
@@ -354,6 +371,7 @@ export default function DocumentManagement() {
             </select>
           </div>
 
+          {/* File input area */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
               PDF Document File *
