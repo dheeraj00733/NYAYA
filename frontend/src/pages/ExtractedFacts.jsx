@@ -91,7 +91,8 @@ export default function ExtractedFacts() {
       setLoading(false);
     }
   };
-    const openEditModal = (fact) => {
+
+  const openEditModal = (fact) => {
     setEditingFact(fact);
     setEditKey(fact.key_field);
     setEditValue(fact.fact_value);
@@ -141,7 +142,8 @@ export default function ExtractedFacts() {
       showError(err.message || 'Failed to create fact.');
     }
   };
-    const handleDeleteFact = async (factId) => {
+
+  const handleDeleteFact = async (factId) => {
     if (!window.confirm('Delete this extracted fact record?')) return;
     try {
       const res = await api.deleteFact(factId);
@@ -195,7 +197,8 @@ export default function ExtractedFacts() {
           </button>
         )}
       </div>
-       {/* Filters Bar */}
+
+      {/* Filters Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -207,7 +210,8 @@ export default function ExtractedFacts() {
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
         </div>
-                <div className="flex flex-wrap items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
           {/* Case Filter */}
           <select
             value={selectedCase}
@@ -244,7 +248,6 @@ export default function ExtractedFacts() {
           </select>
         </div>
       </div>
-
 
       {/* Facts Table */}
       {loading ? (
@@ -337,7 +340,7 @@ export default function ExtractedFacts() {
         </div>
       )}
 
-       {/* Review / Edit Fact Modal */}
+      {/* Review / Edit Fact Modal */}
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
@@ -474,6 +477,3 @@ export default function ExtractedFacts() {
     </div>
   );
 }
-
-
-

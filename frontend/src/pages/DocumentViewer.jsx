@@ -19,7 +19,6 @@ import { api } from '../api/client';
 import Badge from '../components/Badge';
 import { useNotification } from '../context/NotificationContext';
 
-
 export default function DocumentViewer() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -56,7 +55,8 @@ export default function DocumentViewer() {
       setLoading(false);
     }
   };
-   const handleVerifyFact = async (factId) => {
+
+  const handleVerifyFact = async (factId) => {
     try {
       const res = await api.verifyFact(factId, { is_verified: true });
       if (res.success) {
@@ -67,7 +67,8 @@ export default function DocumentViewer() {
       showError(err.message || 'Failed to verify fact.');
     }
   };
-   const handleRegenerateSummary = async () => {
+
+  const handleRegenerateSummary = async () => {
     try {
       setSummarizing(true);
       showInfo('AI model analyzing text across all pages...');
@@ -109,7 +110,7 @@ export default function DocumentViewer() {
         document.active_chat_id = activeChatId;
       }
 
-       const res = await api.sendMessage(activeChatId, { content: userText });
+      const res = await api.sendMessage(activeChatId, { content: userText });
       if (res.success) {
         setChatMessages(prev => [
           ...prev,
@@ -157,6 +158,7 @@ export default function DocumentViewer() {
       </div>
     );
   }
+
   const downloadUrl = api.getDocumentDownloadUrl(document.id);
 
   return (
@@ -203,7 +205,7 @@ export default function DocumentViewer() {
         </div>
       </div>
 
-       {/* Main Split Screen Area */}
+      {/* Main Split Screen Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Pane: Embedded PDF Reader */}
         <div className="w-1/2 flex flex-col border-r border-slate-200 bg-slate-200/80 relative">
@@ -288,7 +290,7 @@ export default function DocumentViewer() {
               </div>
             )}
 
-             {/* Tab 2: Extracted Facts */}
+            {/* Tab 2: Extracted Facts */}
             {activeRightTab === 'facts' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-xs text-slate-500">
@@ -341,7 +343,7 @@ export default function DocumentViewer() {
               </div>
             )}
 
-             {/* Tab 3: Document RAG Chat */}
+            {/* Tab 3: Document RAG Chat */}
             {activeRightTab === 'chat' && (
               <div className="flex flex-col h-full -m-6 p-6">
                 <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -439,4 +441,3 @@ export default function DocumentViewer() {
     </div>
   );
 }
-
