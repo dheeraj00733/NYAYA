@@ -52,7 +52,7 @@ def get_db_connection():
         yield conn
     finally:
         pool.putconn(conn)
-        
+
 def save_document_chunks(document_id: str, chunks: list):
     """
     Inserts chunks and their vector embeddings into document_chunks.
@@ -81,6 +81,7 @@ def save_document_chunks(document_id: str, chunks: list):
     except Exception as e:
         logger.error(f"Failed to persist document chunks: {e}")
         return False
+
 def search_similar_chunks(query_embedding: list, case_id: str, document_id: str = None, top_k: int = 4):
     """
     Executes cosine distance vector search (<=>) on document_chunks joined with legal_documents

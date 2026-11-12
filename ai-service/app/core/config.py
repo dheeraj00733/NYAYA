@@ -15,6 +15,7 @@ try:
         DB_USER: str = os.getenv("DB_USER", "postgres")
         DB_PASSWORD: str = os.getenv("DB_PASSWORD", "postgres")
         
+        # Ollama LLM
         OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "qwen2.5:latest")
         
@@ -35,9 +36,7 @@ try:
 
 except ImportError:
     # Pure Python standard library fallback when pydantic_settings is not installed in global env
-    
-    
-     class Settings:
+    class Settings:
         PROJECT_NAME: str = "NyayaFlow AI Service"
         VERSION: str = "1.0.0"
         API_PREFIX: str = ""
