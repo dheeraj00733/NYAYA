@@ -11,9 +11,9 @@ exports.getHearings = async (req, res, next) => {
     if (req.user.role !== 'admin') {
       params.push(req.user.id);
       whereConditions.push(`EXISTS (
-        SELECT 1 FROM cases c
+        SELECT 1 FROM cases c 
         WHERE c.id = h.case_id AND (
-          c.created_by = $${params.length} OR
+          c.created_by = $${params.length} OR 
           EXISTS (SELECT 1 FROM case_members cm WHERE cm.case_id = c.id AND cm.user_id = $${params.length})
         )
       )`);
@@ -42,7 +42,7 @@ exports.getHearings = async (req, res, next) => {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT
+      SELECT 
         h.*,
         c.case_number,
         c.title AS case_title,
@@ -112,9 +112,9 @@ exports.createHearing = async (req, res, next) => {
     // If status is 'scheduled' and date is today or future, check if it's the next hearing date for the case
     if (status === 'scheduled') {
       await client.query(
-        `UPDATE cases
+        `UPDATE cases 
          SET next_hearing_date = (
-           SELECT MIN(hearing_date) FROM hearings
+           SELECT MIN(hearing_date) FROM hearings 
            WHERE case_id = $1 AND status = 'scheduled' AND hearing_date >= CURRENT_DATE
          )
          WHERE id = $1`,
@@ -166,7 +166,7 @@ exports.updateHearing = async (req, res, next) => {
 
     const updateQuery = `
       UPDATE hearings
-      SET
+      SET 
         hearing_date = COALESCE($1, hearing_date),
         hearing_time = COALESCE($2, hearing_time),
         court_room = COALESCE($3, court_room),
@@ -202,9 +202,9 @@ exports.updateHearing = async (req, res, next) => {
 
     // Recalculate next hearing date on case
     await client.query(
-      `UPDATE cases
+      `UPDATE cases 
        SET next_hearing_date = (
-         SELECT MIN(hearing_date) FROM hearings
+         SELECT MIN(hearing_date) FROM hearings 
          WHERE case_id = $1 AND status = 'scheduled' AND hearing_date >= CURRENT_DATE
        )
        WHERE id = $1`,
@@ -250,9 +250,9 @@ exports.deleteHearing = async (req, res, next) => {
 
     // Recalculate next hearing date
     await db.query(
-      `UPDATE cases
+      `UPDATE cases 
        SET next_hearing_date = (
-         SELECT MIN(hearing_date) FROM hearings
+         SELECT MIN(hearing_date) FROM hearings 
          WHERE case_id = $1 AND status = 'scheduled' AND hearing_date >= CURRENT_DATE
        )
        WHERE id = $1`,

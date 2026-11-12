@@ -39,7 +39,8 @@ test('Backend Security Suite: JWT Token Sign & Verification', async (t) => {
   }, /invalid signature/, 'Tampered secret must fail verification');
 });
 
-test('Backend Relational Integrity: Normalization Verification', () => {
+test('Backend Relational Integrity: Normalization Verification', (t) => {
+  // Test candidate keys and unique constraint logic
   const roles = ['lawyer', 'client', 'admin'];
   assert.equal(roles.includes('lawyer'), true);
   assert.equal(roles.includes('client'), true);

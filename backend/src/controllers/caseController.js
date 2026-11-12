@@ -38,12 +38,15 @@ exports.getCases = async (req, res, next) => {
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Total count
     const countQuery = `SELECT COUNT(*) AS total FROM cases c ${whereClause}`;
     const countResult = await db.query(countQuery, params);
     const total = parseInt(countResult.rows[0].total, 10);
 
+    // Data query with subquery aggregates
     const dataQuery = `
-      SELECT
+      SELECT 
         c.id, c.case_number, c.title, c.description, c.category, c.status, c.priority,
         c.court_name, c.court_type, c.judge_name, c.filing_date, c.next_hearing_date,
         c.created_by, c.created_at, c.updated_at,
@@ -82,7 +85,7 @@ exports.getCaseById = async (req, res, next) => {
     const { id } = req.params;
 
     const caseQuery = `
-      SELECT
+      SELECT 
         c.*,
         u.full_name AS creator_name,
         u.email AS creator_email
@@ -97,34 +100,41 @@ exports.getCaseById = async (req, res, next) => {
     }
 
     const caseData = caseResult.rows[0];
-    const membersResult = await db.query(`
+
+    // Fetch members
+    const membersQuery = `
       SELECT cm.id, cm.role_in_case, cm.can_edit, cm.can_upload, cm.can_chat, cm.joined_at,
              u.id AS user_id, u.full_name, u.email, u.role, u.organization, u.avatar_url
       FROM case_members cm
       JOIN users u ON cm.user_id = u.id
       WHERE cm.case_id = $1
       ORDER BY cm.joined_at ASC
-    `, [id]);
+    `;
+    const membersResult = await db.query(membersQuery, [id]);
 
-    const partiesResult = await db.query(`
+    // Fetch parties
+    const partiesQuery = `
       SELECT cp.id AS case_party_id, cp.party_role, cp.advocate_name, cp.legal_counsel_firm,
              p.id AS party_id, p.name, p.party_type, p.contact_email, p.contact_phone, p.address
       FROM case_parties cp
       JOIN parties p ON cp.party_id = p.id
       WHERE cp.case_id = $1
-    `, [id]);
+    `;
+    const partiesResult = await db.query(partiesQuery, [id]);
 
-    const hearingsResult = await db.query(
-      'SELECT * FROM hearings WHERE case_id = $1 ORDER BY hearing_date ASC',
-      [id]
-    );
-    const docsResult = await db.query(`
+    // Fetch recent hearings
+    const hearingsQuery = `
+      SELECT * FROM hearings WHERE case_id = $1 ORDER BY hearing_date ASC
+    `;
+    const hearingsResult = await db.query(hearingsQuery, [id]);
+
+    // Fetch documents summary
+    const docsQuery = `
       SELECT id, title, file_name, file_size_bytes, document_category, total_pages,
              processing_status, ocr_applied, summary_text, created_at
-      FROM legal_documents
-      WHERE case_id = $1
-      ORDER BY created_at DESC
-    `, [id]);
+      FROM legal_documents WHERE case_id = $1 ORDER BY created_at DESC
+    `;
+    const docsResult = await db.query(docsQuery, [id]);
 
     return res.json({
       success: true,
@@ -165,15 +175,14 @@ exports.createCase = async (req, res, next) => {
       });
     }
 
-    const existingCase = await db.query(
-      'SELECT id FROM cases WHERE case_number = $1',
-      [case_number.trim()]
-    );
+    // Check unique case number
+    const existingCase = await db.query('SELECT id FROM cases WHERE case_number = $1', [case_number.trim()]);
     if (existingCase.rows.length > 0) {
       return res.status(409).json({ success: false, error: 'A case with this Case Number already exists.' });
     }
 
     await client.query('BEGIN');
+
     const insertCaseQuery = `
       INSERT INTO cases (
         case_number, title, description, category, priority,
@@ -194,9 +203,11 @@ exports.createCase = async (req, res, next) => {
       next_hearing_date || null,
       req.user.id
     ];
+
     const caseResult = await client.query(insertCaseQuery, caseValues);
     const newCase = caseResult.rows[0];
 
+    // Automatically enroll creator as lead_counsel in case_members
     await client.query(
       `INSERT INTO case_members (case_id, user_id, role_in_case, can_edit, can_upload, can_chat)
        VALUES ($1, $2, 'lead_counsel', TRUE, TRUE, TRUE)
@@ -204,20 +215,15 @@ exports.createCase = async (req, res, next) => {
       [newCase.id, req.user.id]
     );
 
-    for (const party of parties) {
-      if (party.name && party.party_role) {
-        let partyId = party.party_id;
+    // Process initial parties if provided
+    for (const p of parties) {
+      if (p.name && p.party_role) {
+        let partyId = p.party_id;
         if (!partyId) {
           const insertParty = await client.query(
             `INSERT INTO parties (name, party_type, contact_email, contact_phone, address)
              VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-            [
-              party.name,
-              party.party_type || 'individual',
-              party.contact_email || null,
-              party.contact_phone || null,
-              party.address || null
-            ]
+            [p.name, p.party_type || 'individual', p.contact_email || null, p.contact_phone || null, p.address || null]
           );
           partyId = insertParty.rows[0].id;
         }
@@ -226,18 +232,13 @@ exports.createCase = async (req, res, next) => {
           `INSERT INTO case_parties (case_id, party_id, party_role, advocate_name, legal_counsel_firm)
            VALUES ($1, $2, $3, $4, $5)
            ON CONFLICT DO NOTHING`,
-          [
-            newCase.id,
-            partyId,
-            party.party_role,
-            party.advocate_name || null,
-            party.legal_counsel_firm || null
-          ]
+          [newCase.id, partyId, p.party_role, p.advocate_name || null, p.legal_counsel_firm || null]
         );
       }
     }
 
     await client.query('COMMIT');
+
     await logActivity({
       caseId: newCase.id,
       userId: req.user.id,
@@ -280,7 +281,7 @@ exports.updateCase = async (req, res, next) => {
 
     const updateQuery = `
       UPDATE cases
-      SET
+      SET 
         title = COALESCE($1, title),
         description = COALESCE($2, description),
         category = COALESCE($3, category),
@@ -296,6 +297,7 @@ exports.updateCase = async (req, res, next) => {
       WHERE id = $12
       RETURNING *
     `;
+
     const values = [
       title,
       description,
@@ -339,10 +341,9 @@ exports.updateCase = async (req, res, next) => {
 exports.deleteCase = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const caseCheck = await db.query(
-      'SELECT id, created_by, case_number FROM cases WHERE id = $1',
-      [id]
-    );
+
+    // Verify creator or admin
+    const caseCheck = await db.query('SELECT id, created_by, case_number FROM cases WHERE id = $1', [id]);
     if (caseCheck.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Case not found.' });
     }
@@ -356,6 +357,7 @@ exports.deleteCase = async (req, res, next) => {
     }
 
     await db.query('DELETE FROM cases WHERE id = $1', [id]);
+
     await logActivity({
       caseId: id,
       userId: req.user.id,
@@ -378,13 +380,7 @@ exports.deleteCase = async (req, res, next) => {
 exports.addCaseMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const {
-      user_id,
-      role_in_case = 'co_counsel',
-      can_edit = true,
-      can_upload = true,
-      can_chat = true
-    } = req.body;
+    const { user_id, role_in_case = 'co_counsel', can_edit = true, can_upload = true, can_chat = true } = req.body;
 
     if (!user_id) {
       return res.status(400).json({ success: false, error: 'user_id is required.' });
@@ -393,19 +389,13 @@ exports.addCaseMember = async (req, res, next) => {
     const insertQuery = `
       INSERT INTO case_members (case_id, user_id, role_in_case, can_edit, can_upload, can_chat)
       VALUES ($1, $2, $3, $4, $5, $6)
-      ON CONFLICT (case_id, user_id)
+      ON CONFLICT (case_id, user_id) 
       DO UPDATE SET role_in_case = EXCLUDED.role_in_case, can_edit = EXCLUDED.can_edit,
                     can_upload = EXCLUDED.can_upload, can_chat = EXCLUDED.can_chat
       RETURNING *
     `;
-    const result = await db.query(insertQuery, [
-      id,
-      user_id,
-      role_in_case,
-      can_edit,
-      can_upload,
-      can_chat
-    ]);
+
+    const result = await db.query(insertQuery, [id, user_id, role_in_case, can_edit, can_upload, can_chat]);
 
     return res.status(201).json({
       success: true,
@@ -420,6 +410,7 @@ exports.addCaseMember = async (req, res, next) => {
 exports.removeCaseMember = async (req, res, next) => {
   try {
     const { id, userId } = req.params;
+
     await db.query('DELETE FROM case_members WHERE case_id = $1 AND user_id = $2', [id, userId]);
 
     return res.json({
@@ -435,22 +426,15 @@ exports.addCaseParty = async (req, res, next) => {
   const client = await db.getClient();
   try {
     const { id } = req.params;
-    const {
-      name,
-      party_type = 'individual',
-      contact_email,
-      contact_phone,
-      address,
-      party_role,
-      advocate_name,
-      legal_counsel_firm
-    } = req.body;
+    const { name, party_type = 'individual', contact_email, contact_phone, address, party_role, advocate_name, legal_counsel_firm } = req.body;
 
     if (!name || !party_role) {
       return res.status(400).json({ success: false, error: 'Party name and party_role are required.' });
     }
 
     await client.query('BEGIN');
+
+    // Create party entity
     const partyRes = await client.query(
       `INSERT INTO parties (name, party_type, contact_email, contact_phone, address)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
@@ -458,6 +442,7 @@ exports.addCaseParty = async (req, res, next) => {
     );
     const partyId = partyRes.rows[0].id;
 
+    // Link in case_parties
     const linkRes = await client.query(
       `INSERT INTO case_parties (case_id, party_id, party_role, advocate_name, legal_counsel_firm)
        VALUES ($1, $2, $3, $4, $5)
@@ -468,6 +453,7 @@ exports.addCaseParty = async (req, res, next) => {
     );
 
     await client.query('COMMIT');
+
     return res.status(201).json({
       success: true,
       message: 'Party added to case successfully.',

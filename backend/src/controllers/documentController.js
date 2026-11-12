@@ -27,8 +27,6 @@ exports.uploadDocument = async (req, res, next) => {
       if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return res.status(404).json({ success: false, error: 'Associated case not found.' });
     }
-
-    // Compute SHA256 checksum
     const fileBuffer = fs.readFileSync(req.file.path);
     const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
@@ -97,9 +95,9 @@ exports.getDocuments = async (req, res, next) => {
     if (req.user.role !== 'admin') {
       params.push(req.user.id);
       whereConditions.push(`EXISTS (
-        SELECT 1 FROM cases c
+        SELECT 1 FROM cases c 
         WHERE c.id = ld.case_id AND (
-          c.created_by = $${params.length} OR
+          c.created_by = $${params.length} OR 
           EXISTS (SELECT 1 FROM case_members cm WHERE cm.case_id = c.id AND cm.user_id = $${params.length})
         )
       )`);
@@ -128,7 +126,7 @@ exports.getDocuments = async (req, res, next) => {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT
+      SELECT 
         ld.*,
         c.case_number,
         c.title AS case_title,
@@ -158,7 +156,7 @@ exports.getDocumentById = async (req, res, next) => {
     const { id } = req.params;
 
     const docQuery = `
-      SELECT
+      SELECT 
         ld.*,
         c.case_number,
         c.title AS case_title,
@@ -302,7 +300,7 @@ exports.summarizeDocument = async (req, res, next) => {
     const summaryText = typeof summaryResponse === 'string' ? summaryResponse : summaryResponse.summary || JSON.stringify(summaryResponse);
 
     await db.query(
-      `UPDATE legal_documents
+      `UPDATE legal_documents 
        SET summary_text = $1, summary_generated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [summaryText, id]

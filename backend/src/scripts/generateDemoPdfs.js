@@ -43,7 +43,7 @@ function createSimplePdf(pagesText) {
     pageObjIndices.push(pageIdx);
   });
 
-   // Re-encode Pages container
+  // Re-encode Pages container
   const kidsStr = pageObjIndices.map(idx => `${idx} 0 R`).join(' ');
   const pagesObjStr = `<< /Type /Pages /Kids [ ${kidsStr} ] /Count ${pageObjIndices.length} >>`;
 
@@ -74,6 +74,7 @@ const uploadsDir = path.resolve(__dirname, '../../../storage/uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
 // 1. Writ Petition Anand Tech
 const writPetitionText = [
   `IN THE HIGH COURT OF DELHI AT NEW DELHI\nCRIMINAL WRIT PETITION NO. 8841 OF 2024\n\nIN THE MATTER OF:\nANAND TECH SOLUTIONS PVT. LTD.         ...PETITIONER\nTHROUGH ITS AUTHORIZED DIRECTOR\n\nVERSUS\n\n1. STATE OF NCT OF DELHI               ...RESPONDENT NO. 1\nTHROUGH STANDING COUNSEL (CRIMINAL)\n\n2. CYBER CRIME CELL, DELHI POLICE      ...RESPONDENT NO. 2\n\nWRIT PETITION UNDER ARTICLE 226 OF THE CONSTITUTION OF INDIA\nPRAYING FOR ISSUANCE OF A WRIT OF CERTIORARI OR ANY OTHER\nAPPROPRIATE WRIT FOR QUASHING OF FIR NO. 402/2023 DATED 14.11.2023\nREGISTERED UNDER SECTION 66 OF THE INFORMATION TECHNOLOGY ACT, 2000\nAND SECTION 420 OF THE INDIAN PENAL CODE, 1860.`,

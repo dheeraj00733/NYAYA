@@ -21,7 +21,7 @@ exports.getChats = async (req, res, next) => {
     const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
 
     const query = `
-      SELECT
+      SELECT 
         ch.*,
         c.case_number,
         c.title AS case_title,

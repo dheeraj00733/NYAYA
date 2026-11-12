@@ -11,9 +11,9 @@ exports.getFacts = async (req, res, next) => {
     if (req.user.role !== 'admin') {
       params.push(req.user.id);
       whereConditions.push(`EXISTS (
-        SELECT 1 FROM cases c
+        SELECT 1 FROM cases c 
         WHERE c.id = ef.case_id AND (
-          c.created_by = $${params.length} OR
+          c.created_by = $${params.length} OR 
           EXISTS (SELECT 1 FROM case_members cm WHERE cm.case_id = c.id AND cm.user_id = $${params.length})
         )
       )`);
@@ -42,7 +42,7 @@ exports.getFacts = async (req, res, next) => {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const query = `
-      SELECT
+      SELECT 
         ef.*,
         c.case_number,
         c.title AS case_title,
@@ -147,7 +147,7 @@ exports.verifyFact = async (req, res, next) => {
 
     const updateQuery = `
       UPDATE extracted_facts
-      SET
+      SET 
         fact_value = $1,
         key_field = $2,
         is_verified = $3,
