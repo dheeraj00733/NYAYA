@@ -13,7 +13,7 @@ class LegalSummarizer:
         Case Name, Court, Parties, Dates, Issues, Arguments, Facts, Outcome.
         """
         combined_text = "\n\n".join([f"--- Page {p['page_number']} ---\n{p['text']}" for p in pages[:6]])
-
+        
         # Try Ollama first
         ollama_summary = await LegalSummarizer._query_ollama(combined_text)
         if ollama_summary:
@@ -77,7 +77,7 @@ DOCUMENT TEXT:
             logger.warning(f"Ollama summarization timed out for model '{settings.OLLAMA_MODEL}'.")
         except Exception as e:
             logger.warning(f"Ollama summarization request failed: {e}")
-
+        
         return None
 
     @staticmethod
