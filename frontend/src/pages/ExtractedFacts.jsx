@@ -17,3 +17,77 @@ import Badge from '../components/Badge';
 import Modal from '../components/Modal';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
+
+export default function ExtractedFacts() {
+  const [facts, setFacts] = useState([]);
+  const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Filters
+  const [selectedCase, setSelectedCase] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+  const [verifiedFilter, setVerifiedFilter] = useState('');
+  const [search, setSearch] = useState('');
+
+  // Edit / Review Modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingFact, setEditingFact] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [editKey, setEditKey] = useState('');
+  const [editVerified, setEditVerified] = useState(true);
+
+  // New Fact Modal
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newFact, setNewFact] = useState({
+    case_id: '',
+    fact_type: 'legal_section',
+    key_field: '',
+    fact_value: '',
+    source_page: 1,
+    excerpt: ''
+  });
+
+  const { showSuccess, showError } = useNotification();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    fetchCases();
+  }, []);
+
+  useEffect(() => {
+    fetchFacts();
+  }, [selectedCase, selectedType, verifiedFilter]);
+
+  const fetchCases = async () => {
+    try {
+      const res = await api.getCases({ limit: 100 });
+      if (res.success) {
+        setCases(res.cases);
+        if (!newFact.case_id && res.cases.length > 0) {
+          setNewFact(prev => ({ ...prev, case_id: res.cases[0].id }));
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load cases', e);
+    }
+  };
+
+  const fetchFacts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.getFacts({
+        case_id: selectedCase || undefined,
+        fact_type: selectedType || undefined,
+        is_verified: verifiedFilter !== '' ? verifiedFilter : undefined
+      });
+      if (res.success) {
+        setFacts(res.facts);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to fetch extracted facts.');
+    } finally {
+      setLoading(false);
+    }
+  };
