@@ -49,3 +49,49 @@ export default function HearingTimeline() {
   useEffect(() => {
     fetchHearings();
   }, [caseFilter, statusFilter]);
+
+  const fetchCases = async () => {
+    try {
+      const res = await api.getCases({ limit: 100 });
+      if (res.success) {
+        setCases(res.cases);
+        if (!hearingForm.case_id && res.cases.length > 0) {
+          setHearingForm(prev => ({ ...prev, case_id: res.cases[0].id }));
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch cases', e);
+    }
+  };
+
+  const fetchHearings = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.getHearings({
+        case_id: caseFilter || undefined,
+        status: statusFilter || undefined
+      });
+      if (res.success) {
+        setHearings(res.hearings);
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to fetch hearings.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateHearing = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.createHearing(hearingForm);
+      if (res.success) {
+        showSuccess('Court proceeding scheduled.');
+        setIsModalOpen(false);
+        fetchHearings();
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to schedule hearing.');
+    }
+  };
