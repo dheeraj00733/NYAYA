@@ -337,4 +337,143 @@ export default function ExtractedFacts() {
         </div>
       )}
 
+       {/* Review / Edit Fact Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Review & Verify Legal Fact"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleUpdateFact} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Entity Field</label>
+            <input
+              type="text"
+              required
+              value={editKey}
+              onChange={(e) => setEditKey(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Extracted Fact Value</label>
+            <textarea
+              rows={3}
+              required
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            />
+          </div>
+
+          {editingFact?.excerpt && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+              <span className="font-bold text-slate-600 block mb-1">Source Excerpt (Page {editingFact.source_page}):</span>
+              <p className="text-slate-500 italic">"{editingFact.excerpt}"</p>
+            </div>
+          )}
+
+          <div className="flex items-center space-x-2 pt-2">
+            <input
+              type="checkbox"
+              id="verify-checkbox"
+              checked={editVerified}
+              onChange={(e) => setEditVerified(e.target.checked)}
+              className="w-4 h-4 text-blue-600 rounded border-slate-300"
+            />
+            <label htmlFor="verify-checkbox" className="text-xs font-bold text-slate-800">
+              Confirm fact as verified by legal counsel
+            </label>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(false)}
+              className="px-4 py-2 border rounded-xl text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold"
+            >
+              Save & Verify Fact
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Record New Fact Modal */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Record Specific Legal Fact"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleCreateFact} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Associated Case *</label>
+            <select
+              required
+              value={newFact.case_id}
+              onChange={(e) => setNewFact({ ...newFact, case_id: e.target.value })}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            >
+              {cases.map(c => (
+                <option key={c.id} value={c.id}>[{c.case_number}] {c.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Fact Category</label>
+              <select
+                value={newFact.fact_type}
+                onChange={(e) => setNewFact({ ...newFact, fact_type: e.target.value })}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs capitalize"
+              >
+                {factTypes.map(t => (
+                  <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Key Label *</label>
+              <input
+                type="text"
+                required
+                value={newFact.key_field}
+                onChange={(e) => setNewFact({ ...newFact, key_field: e.target.value })}
+                placeholder="e.g. Interim Injunction"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Fact Value *</label>
+            <textarea
+              rows={3}
+              required
+              value={newFact.fact_value}
+              onChange={(e) => setNewFact({ ...newFact, fact_value: e.target.value })}
+              placeholder="e.g. Injunction granted restraining trademark use until final disposal."
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            />
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-3 border-t border-slate-100">
+            <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 border rounded-xl text-xs">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold">Record Fact</button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+
+
 
