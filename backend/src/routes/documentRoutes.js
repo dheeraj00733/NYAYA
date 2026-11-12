@@ -6,8 +6,6 @@ const upload = require('../middleware/upload');
 
 router.use(authenticateToken);
 
-
-
 router.get('/', documentController.getDocuments);
 router.post('/upload', upload.single('file'), documentController.uploadDocument);
 router.get('/:id', documentController.getDocumentById);

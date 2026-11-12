@@ -7,8 +7,13 @@ const db = require('./config/db');
 const AIService = require('./services/aiService');
 const errorHandler = require('./middleware/errorHandler');
 
-// Implemented Route Imports
+// Route Imports
 const authRoutes = require('./routes/authRoutes');
+const caseRoutes = require('./routes/caseRoutes');
+const documentRoutes = require('./routes/documentRoutes');
+const factRoutes = require('./routes/factRoutes');
+const hearingRoutes = require('./routes/hearingRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const activityRoutes = require('./routes/activityRoutes');
 
@@ -16,7 +21,7 @@ const app = express();
 
 // Security & Parsing Middleware
 app.use(helmet({
-  crossOriginResourcePolicy: false
+  crossOriginResourcePolicy: false // Allows PDF streaming to frontend viewers
 }));
 app.use(cors({
   origin: '*',
@@ -44,8 +49,13 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// Mount Implemented API Routes
+// Mount API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/cases', caseRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/facts', factRoutes);
+app.use('/api/hearings', hearingRoutes);
+app.use('/api/chats', chatRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/activities', activityRoutes);
 
@@ -58,14 +68,24 @@ app.get('/api/ai/models', async (req, res) => {
 // Centralized Error Handler
 app.use(errorHandler);
 
+// Only listen when not required by test runner
 if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(env.PORT, () => {
-    console.log(`NyayaFlow Core Backend listening on port ${env.PORT}`);
+    console.log(`=======================================================`);
+    console.log(`  NyayaFlow Core Backend Online`);
+    console.log(`  Listening on Port: ${env.PORT}`);
+    console.log(`  Environment:       ${env.NODE_ENV}`);
+    console.log(`  Health Check:      http://localhost:${env.PORT}/health`);
+    console.log(`=======================================================`);
   });
 
   const gracefulShutdown = async () => {
+    console.log('\n[NyayaFlow Backend]: Received shutdown signal, closing server & pool...');
     server.close(() => {
-      db.pool.end(() => process.exit(0));
+      db.pool.end(() => {
+        console.log('[NyayaFlow Backend]: Database pool closed. Exiting process.');
+        process.exit(0);
+      });
     });
   };
 
