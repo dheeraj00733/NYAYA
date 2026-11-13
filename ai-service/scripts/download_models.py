@@ -59,3 +59,4 @@ if __name__ == "__main__":
         logger.info("All AI models ready!")
     else:
         logger.warning("Setup completed with warnings. Check logs above.")
+
