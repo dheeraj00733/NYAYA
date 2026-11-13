@@ -24,7 +24,9 @@ app.use(helmet({
   crossOriginResourcePolicy: false // Allows PDF streaming to frontend viewers
 }));
 app.use(cors({
-  origin: '*',
+  origin: env.CORS_ORIGIN && env.CORS_ORIGIN !== '*' 
+    ? (env.CORS_ORIGIN.includes(',') ? env.CORS_ORIGIN.split(',').map(s => s.trim()) : env.CORS_ORIGIN)
+    : '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -70,12 +72,14 @@ app.use(errorHandler);
 
 // Only listen when not required by test runner
 if (process.env.NODE_ENV !== 'test') {
-  const server = app.listen(env.PORT, () => {
+  const host = '0.0.0.0';
+  const server = app.listen(env.PORT, host, () => {
     console.log(`=======================================================`);
     console.log(`  NyayaFlow Core Backend Online`);
+    console.log(`  Listening on Host: ${host}`);
     console.log(`  Listening on Port: ${env.PORT}`);
     console.log(`  Environment:       ${env.NODE_ENV}`);
-    console.log(`  Health Check:      http://localhost:${env.PORT}/health`);
+    console.log(`  Health Check:      http://${host}:${env.PORT}/health`);
     console.log(`=======================================================`);
   });
 

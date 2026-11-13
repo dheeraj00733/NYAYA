@@ -13,6 +13,12 @@ class EmbeddingService:
     @classmethod
     def get_model(cls):
         if cls._model is None and not cls._is_fallback:
+            model_name = (settings.EMBEDDING_MODEL_NAME or "").lower()
+            if model_name.startswith(("deterministic", "feature-hashing", "fallback")):
+                logger.info(f"Using lightweight deterministic feature-hashing embedding engine (384-dim).")
+                cls._is_fallback = True
+                return None
+
             try:
                 from sentence_transformers import SentenceTransformer
                 logger.info(f"Loading local SentenceTransformer model: {settings.EMBEDDING_MODEL_NAME}")

@@ -22,7 +22,17 @@ class RAGEngine:
         Executes grounded RAG workflow:
         1. Query embedding -> 2. Vector search in pgvector -> 3. Context assembly -> 4. Grounded synthesis -> 5. Citations
         """
-        active_model = model or settings.OLLAMA_MODEL
+        provider = (settings.LLM_PROVIDER or "groq").lower()
+
+        # Resolve active model based on provider
+        if provider == "groq":
+            # If a model is explicitly passed and is not an ollama local prefix, use it
+            if model and not any(model.startswith(m) for m in ["qwen2.5", "llama3.2", "llama3", "mistral"]):
+                active_model = model
+            else:
+                active_model = settings.GROQ_MODEL
+        else:
+            active_model = model or settings.OLLAMA_MODEL
 
         # 1. Generate query embedding (384-dim)
         query_vector = EmbeddingService.encode(query)
@@ -86,20 +96,41 @@ USER QUESTION:
 
 GROUNDED LEGAL ANSWER:"""
 
-        # 4. Attempt synthesis via Ollama
-        ollama_response = await RAGEngine._query_ollama(
-            system_instruction=system_instruction,
-            prompt=user_prompt,
-            model=active_model
-        )
+        # 4. Attempt synthesis via configured provider
+        synthesis_response = None
+        used_model = active_model
 
-        if ollama_response:
+        if provider == "groq":
+            synthesis_response = await RAGEngine._query_groq(
+                system_instruction=system_instruction,
+                prompt=user_prompt,
+                model=active_model
+            )
+            # If Groq synthesis fails, fallback to local Ollama if reachable
+            if not synthesis_response:
+                logger.info("Groq synthesis unavailable; attempting local Ollama fallback...")
+                synthesis_response = await RAGEngine._query_ollama(
+                    system_instruction=system_instruction,
+                    prompt=user_prompt,
+                    model=settings.OLLAMA_MODEL
+                )
+                if synthesis_response:
+                    used_model = f"{settings.OLLAMA_MODEL} (Ollama Fallback)"
+        else:
+            # Local Ollama provider
+            synthesis_response = await RAGEngine._query_ollama(
+                system_instruction=system_instruction,
+                prompt=user_prompt,
+                model=active_model
+            )
+
+        if synthesis_response:
             return {
-                "answer": ollama_response,
+                "answer": synthesis_response,
                 "citations": citations,
                 "retrieved_chunk_ids": retrieved_ids,
                 "confidence": "high",
-                "model_used": active_model,
+                "model_used": used_model,
                 "disclaimer": DISCLAIMER_TEXT
             }
 
@@ -113,6 +144,54 @@ GROUNDED LEGAL ANSWER:"""
             "model_used": "NyayaFlow Local Grounded Synthesizer",
             "disclaimer": DISCLAIMER_TEXT
         }
+
+    @staticmethod
+    async def _query_groq(system_instruction: str, prompt: str, model: str) -> str:
+        """
+        Executes ultra-fast synthesis via Groq Cloud OpenAI-compatible API.
+        """
+        if not settings.GROQ_API_KEY:
+            logger.warning("GROQ_API_KEY is not configured. Cannot query Groq.")
+            return None
+        try:
+            headers = {
+                "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.1,
+                "top_p": 0.9,
+                "max_completion_tokens": 2048
+            }
+            async with httpx.AsyncClient(timeout=45.0) as client:
+                res = await client.post(
+                    f"{settings.GROQ_BASE_URL}/chat/completions",
+                    headers=headers,
+                    json=payload
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    choices = data.get("choices", [])
+                    if choices:
+                        answer = choices[0].get("message", {}).get("content", "").strip()
+                        if answer:
+                            return answer
+                elif res.status_code == 404:
+                    logger.warning(f"Groq model '{model}' not found. Details: {res.text}")
+                else:
+                    logger.warning(f"Groq returned HTTP {res.status_code}: {res.text}")
+        except httpx.ConnectError:
+            logger.warning(f"Could not connect to Groq at {settings.GROQ_BASE_URL}.")
+        except httpx.TimeoutException:
+            logger.warning(f"Groq generation timed out for model '{model}'.")
+        except Exception as e:
+            logger.warning(f"Groq RAG synthesis error: {e}")
+        return None
 
     @staticmethod
     async def _query_ollama(system_instruction: str, prompt: str, model: str) -> str:

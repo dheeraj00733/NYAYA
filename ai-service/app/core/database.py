@@ -1,3 +1,4 @@
+import os
 import logging
 from contextlib import contextmanager
 from app.core.config import settings
@@ -19,15 +20,28 @@ def init_db_pool():
         logger.warning("psycopg2 driver not installed in current environment. Database operations will use fallback mode.")
         return
     try:
-        pool = ThreadedConnectionPool(
-            minconn=2,
-            maxconn=10,
-            host=settings.DB_HOST,
-            port=settings.DB_PORT,
-            dbname=settings.DB_NAME,
-            user=settings.DB_USER,
-            password=settings.DB_PASSWORD
-        )
+        db_url = settings.DATABASE_URL or os.getenv("DATABASE_URL")
+        if db_url:
+            # Ensure SSL mode is set for Supabase/cloud connections
+            if "?" not in db_url and "sslmode" not in db_url:
+                db_url += "?sslmode=require"
+            pool = ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=db_url
+            )
+        else:
+            ssl_mode = "require" if os.getenv("DB_SSL") == "true" else "prefer"
+            pool = ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                host=settings.DB_HOST,
+                port=settings.DB_PORT,
+                dbname=settings.DB_NAME,
+                user=settings.DB_USER,
+                password=settings.DB_PASSWORD,
+                sslmode=ssl_mode
+            )
         logger.info("PostgreSQL AI connection pool initialized.")
     except Exception as e:
         logger.warning(f"Could not connect to PostgreSQL from AI Service: {e}. Fallback mode active.")

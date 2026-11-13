@@ -1,11 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const env = require('../config/env');
 const db = require('../config/db');
 const AIService = require('../services/aiService');
+const StorageService = require('../services/storageService');
 const { logActivity } = require('../services/auditService');
 
 exports.uploadDocument = async (req, res, next) => {
+  let uploadedCloudPath = null;
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'PDF file is required for upload.' });
@@ -14,21 +17,61 @@ exports.uploadDocument = async (req, res, next) => {
     const { case_id, title, document_category = 'other' } = req.body;
 
     if (!case_id || !title) {
-      // Remove uploaded file if validation fails
+      // Remove temporary uploaded file if validation fails
       if (req.file.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
       }
       return res.status(400).json({ success: false, error: 'case_id and title are required.' });
+    }
+
+    // Guard: In production, never silently fall back to local disk storage
+    if (env.NODE_ENV === 'production' && !StorageService.isConfigured()) {
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+      }
+      return res.status(500).json({
+        success: false,
+        error: '[Configuration Error]: Supabase Storage credentials (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY) are required in production mode.'
+      });
     }
 
     // Verify case exists
     const caseCheck = await db.query('SELECT id, case_number FROM cases WHERE id = $1', [case_id]);
     if (caseCheck.rows.length === 0) {
-      if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+      }
       return res.status(404).json({ success: false, error: 'Associated case not found.' });
     }
+
     const fileBuffer = fs.readFileSync(req.file.path);
     const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+    let storedPath = req.file.path;
+    let aiProcessingTarget = req.file.path;
+
+    // Supabase Storage Integration (Production & Cloud Mode)
+    if (StorageService.isConfigured()) {
+      const docUuid = crypto.randomUUID();
+      const safeFilename = path.basename(req.file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const cloudStoragePath = `cases/${case_id}/${docUuid}-${safeFilename}`;
+
+      await StorageService.uploadPdf(fileBuffer, cloudStoragePath);
+      uploadedCloudPath = cloudStoragePath;
+      storedPath = `supabase://${StorageService.bucket}/${cloudStoragePath}`;
+
+      // Generate a 1-hour secure signed URL for the AI Service
+      aiProcessingTarget = await StorageService.createSignedUrl(cloudStoragePath, 3600);
+
+      // Clean up local temp file safely
+      try {
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (cleanupErr) {
+        console.warn('[Storage Cleanup]: Error unlinking temp file:', cleanupErr.message);
+      }
+    }
 
     const insertQuery = `
       INSERT INTO legal_documents (
@@ -43,7 +86,7 @@ exports.uploadDocument = async (req, res, next) => {
       req.user.id,
       title.trim(),
       req.file.originalname,
-      req.file.path,
+      storedPath,
       req.file.size,
       req.file.mimetype || 'application/pdf',
       document_category,
@@ -63,13 +106,13 @@ exports.uploadDocument = async (req, res, next) => {
       ipAddress: req.ip
     });
 
-    // Trigger AI background processing (PyMuPDF extraction, chunking, embeddings, fact extraction)
-    AIService.triggerDocumentProcessing(document.id, document.file_path, case_id)
+    // Trigger AI background processing with secure signed URL or local path
+    AIService.triggerDocumentProcessing(document.id, aiProcessingTarget, case_id)
       .then(async (procResult) => {
-        console.log(`[Document Ingestion]: Document ${document.id} processed successfully`, procResult);
+        console.log(`[Document Ingestion]: Document ${document.id} processing status:`, procResult?.status || 'initiated');
       })
       .catch((err) => {
-        console.error(`[Document Ingestion]: Error processing document ${document.id}:`, err);
+        console.error(`[Document Ingestion]: Error processing document ${document.id}:`, err.message);
       });
 
     return res.status(201).json({
@@ -78,8 +121,16 @@ exports.uploadDocument = async (req, res, next) => {
       document
     });
   } catch (error) {
+    // Safe cleanup: delete orphaned cloud storage object if database insert failed
+    if (uploadedCloudPath && StorageService.isConfigured()) {
+      try {
+        await StorageService.deleteFile(uploadedCloudPath);
+      } catch (cleanupErr) {
+        console.warn('[Orphan Cleanup Error]:', cleanupErr.message);
+      }
+    }
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
     }
     next(error);
   }
@@ -118,8 +169,8 @@ exports.getDocuments = async (req, res, next) => {
       whereConditions.push(`ld.processing_status = $${params.length}`);
     }
 
-    if (search) {
-      params.push(`%${search}%`);
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`);
       whereConditions.push(`(ld.title ILIKE $${params.length} OR ld.file_name ILIKE $${params.length})`);
     }
 
@@ -130,9 +181,7 @@ exports.getDocuments = async (req, res, next) => {
         ld.*,
         c.case_number,
         c.title AS case_title,
-        u.full_name AS uploader_name,
-        (SELECT COUNT(*) FROM document_chunks dc WHERE dc.document_id = ld.id) AS chunks_count,
-        (SELECT COUNT(*) FROM extracted_facts ef WHERE ef.document_id = ld.id) AS facts_count
+        u.full_name AS uploader_name
       FROM legal_documents ld
       JOIN cases c ON ld.case_id = c.id
       LEFT JOIN users u ON ld.uploaded_by = u.id
@@ -141,11 +190,7 @@ exports.getDocuments = async (req, res, next) => {
     `;
 
     const result = await db.query(query, params);
-
-    return res.json({
-      success: true,
-      documents: result.rows
-    });
+    return res.json({ success: true, count: result.rows.length, documents: result.rows });
   } catch (error) {
     next(error);
   }
@@ -211,6 +256,31 @@ exports.downloadDocument = async (req, res, next) => {
 
     const { file_path, file_name, mime_type } = result.rows[0];
 
+    // 1. Supabase Storage download/streaming
+    if (file_path.startsWith('supabase://')) {
+      const cloudStoragePath = file_path.replace(/^supabase:\/\/[^/]+\//, '');
+      if (StorageService.isConfigured()) {
+        try {
+          const storageResponse = await StorageService.getFileStream(cloudStoragePath);
+          res.setHeader('Content-Type', mime_type || 'application/pdf');
+          res.setHeader('Content-Disposition', `inline; filename="${file_name}"`);
+          const arrayBuffer = await storageResponse.arrayBuffer();
+          return res.send(Buffer.from(arrayBuffer));
+        } catch (fetchErr) {
+          return res.status(502).json({
+            success: false,
+            error: `Failed to retrieve document from cloud storage: ${fetchErr.message}`
+          });
+        }
+      } else {
+        return res.status(503).json({
+          success: false,
+          error: 'Supabase Storage credentials not configured on server to retrieve cloud file.'
+        });
+      }
+    }
+
+    // 2. Local filesystem download/streaming (development mode)
     const resolvedPath = path.isAbsolute(file_path)
       ? file_path
       : path.resolve(__dirname, '../../../', file_path);
@@ -250,8 +320,11 @@ exports.deleteDocument = async (req, res, next) => {
     // Remove database record (cascades to chunks and facts)
     await db.query('DELETE FROM legal_documents WHERE id = $1', [id]);
 
-    // Remove local file
-    if (fs.existsSync(document.file_path)) {
+    // Remove from private storage
+    if (document.file_path.startsWith('supabase://')) {
+      const cloudStoragePath = document.file_path.replace(/^supabase:\/\/[^/]+\//, '');
+      await StorageService.deleteFile(cloudStoragePath);
+    } else if (fs.existsSync(document.file_path)) {
       try {
         fs.unlinkSync(document.file_path);
       } catch (err) {
@@ -264,15 +337,12 @@ exports.deleteDocument = async (req, res, next) => {
       userId: req.user.id,
       actionType: 'delete',
       entityType: 'document',
-      entityId: id,
+      entityId: document.id,
       details: { title: document.title, file_name: document.file_name },
       ipAddress: req.ip
     });
 
-    return res.json({
-      success: true,
-      message: 'Document and its vector embeddings deleted successfully.'
-    });
+    return res.json({ success: true, message: 'Document and associated vector chunks deleted successfully.' });
   } catch (error) {
     next(error);
   }
@@ -282,45 +352,45 @@ exports.summarizeDocument = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const docCheck = await db.query(
-      'SELECT id, case_id, file_path, title, summary_text FROM legal_documents WHERE id = $1',
-      [id]
-    );
-
-    if (docCheck.rows.length === 0) {
+    const docQuery = await db.query('SELECT * FROM legal_documents WHERE id = $1', [id]);
+    if (docQuery.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Document not found.' });
     }
 
-    const document = docCheck.rows[0];
+    const document = docQuery.rows[0];
 
-    // Invoke AI service
-    const summaryResponse = await AIService.summarizeDocument(document.id);
-
-    // Save summary in legal_documents
-    const summaryText = typeof summaryResponse === 'string' ? summaryResponse : summaryResponse.summary || JSON.stringify(summaryResponse);
-
-    await db.query(
-      `UPDATE legal_documents 
-       SET summary_text = $1, summary_generated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [summaryText, id]
+    // Fetch chunks
+    const chunksRes = await db.query(
+      'SELECT content FROM document_chunks WHERE document_id = $1 ORDER BY chunk_index ASC LIMIT 5',
+      [id]
     );
+
+    const textContent = chunksRes.rows.map(c => c.content).join('\n\n');
+
+    const summaryResult = await AIService.summarizeDocument(id, textContent);
+
+    // Update document with new summary
+    if (summaryResult && summaryResult.summary) {
+      await db.query(
+        'UPDATE legal_documents SET summary_text = $1, summary_generated_at = CURRENT_TIMESTAMP WHERE id = $2',
+        [summaryResult.summary, id]
+      );
+    }
 
     await logActivity({
       caseId: document.case_id,
       userId: req.user.id,
       actionType: 'summarize',
       entityType: 'document',
-      entityId: id,
-      details: { title: document.title },
+      entityId: document.id,
+      details: { title: document.title, generator: summaryResult.generator },
       ipAddress: req.ip
     });
 
     return res.json({
       success: true,
-      message: 'Summary generated successfully.',
-      summary: summaryText,
-      structured_data: summaryResponse.structured_data || null
+      summary: summaryResult.summary,
+      generator: summaryResult.generator
     });
   } catch (error) {
     next(error);
