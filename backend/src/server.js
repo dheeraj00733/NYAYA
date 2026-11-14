@@ -36,6 +36,22 @@ if (env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
+// Root Landing Route (provides immediate visual confirmation when visited directly in a browser)
+app.get('/', (req, res) => {
+  return res.status(200).json({
+    name: 'NyayaFlow API Backend',
+    status: 'online',
+    version: '1.0.0',
+    documentation: 'https://nyayaflow-ai-service.onrender.com/docs',
+    frontend: 'https://nyaya-gilt-eight.vercel.app',
+    endpoints: {
+      health: '/health',
+      ready: '/ready',
+      api: '/api'
+    }
+  });
+});
+
 // Lightweight Liveness Healthcheck (for Render / orchestrator process monitoring)
 // Immediately returns 200 OK to confirm the Node.js process is alive and accepting traffic
 app.get('/health', (req, res) => {
