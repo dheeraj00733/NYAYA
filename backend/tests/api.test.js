@@ -39,6 +39,74 @@ test('Backend Security Suite: JWT Token Sign & Verification', async (t) => {
   }, /invalid signature/, 'Tampered secret must fail verification');
 });
 
+test('Backend Security Suite: JWT Secret Configuration & Production Validation', async (t) => {
+  const { validateJwtSecret } = require('../src/config/env');
+
+  await t.test('rejects missing or empty JWT_SECRET in production', () => {
+    assert.throws(
+      () => validateJwtSecret(undefined, 'production'),
+      /JWT_SECRET must be explicitly configured in production/
+    );
+    assert.throws(
+      () => validateJwtSecret('', 'production'),
+      /JWT_SECRET must be explicitly configured in production/
+    );
+    assert.throws(
+      () => validateJwtSecret('   ', 'production'),
+      /JWT_SECRET must be explicitly configured in production/
+    );
+  });
+
+  await t.test('rejects short JWT_SECRET (< 32 chars) in production', () => {
+    assert.throws(
+      () => validateJwtSecret('short_insecure_key_12345', 'production'),
+      /JWT_SECRET in production is weak or predictable/
+    );
+  });
+
+  await t.test('rejects predictable or default patterns in production JWT_SECRET', () => {
+    assert.throws(
+      () => validateJwtSecret('nyayaflow_super_secret_jwt_key_development_2025_extended', 'production'),
+      /JWT_SECRET in production is weak or predictable/
+    );
+    assert.throws(
+      () => validateJwtSecret('my_production_changeme_super_long_secret_key_12345678', 'production'),
+      /JWT_SECRET in production is weak or predictable/
+    );
+  });
+
+  await t.test('accepts strong, high-entropy JWT_SECRET in production', () => {
+    const strongSecret = 'e8b7c3d4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2';
+    const result = validateJwtSecret(strongSecret, 'production');
+    assert.equal(result, strongSecret);
+  });
+
+  await t.test('provides development-only fallback when JWT_SECRET is absent in development', () => {
+    const devFallback = validateJwtSecret(undefined, 'development');
+    assert.ok(devFallback.includes('dev_only'), 'Must use explicit dev-only fallback identifier');
+  });
+
+  await t.test('preserves explicitly configured JWT_SECRET in development', () => {
+    const customDev = 'custom_dev_key_for_testing';
+    const result = validateJwtSecret(customDev, 'development');
+    assert.equal(result, customDev);
+  });
+
+  await t.test('crashes application module initialization if loaded in production with empty JWT_SECRET', () => {
+    const { execSync } = require('child_process');
+    assert.throws(() => {
+      execSync('NODE_ENV=production JWT_SECRET="" node -e "require(\x27./backend/src/config/env\x27)"', { stdio: 'pipe' });
+    });
+  });
+
+  await t.test('crashes application module initialization if loaded in production with weak JWT_SECRET', () => {
+    const { execSync } = require('child_process');
+    assert.throws(() => {
+      execSync('NODE_ENV=production JWT_SECRET="nyayaflow_super_secret_jwt_key_development_2025" node -e "require(\x27./backend/src/config/env\x27)"', { stdio: 'pipe' });
+    });
+  });
+});
+
 test('Backend Relational Integrity: Normalization Verification', (t) => {
   // Test candidate keys and unique constraint logic
   const roles = ['lawyer', 'client', 'admin'];

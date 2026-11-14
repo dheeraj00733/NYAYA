@@ -74,6 +74,13 @@ app.get(['/ready', '/health/ready'], async (req, res) => {
       console.warn('[Readiness Audit Warning]: AI Service check issue:', sanitizedAiError);
     }
 
+    if (!isDbConnected && dbHealth) {
+      console.error('[Readiness Audit]: Database check failed:', {
+        category: dbHealth.category,
+        code: dbHealth.code
+      });
+    }
+
     // Public sanitized payload: never leak raw stack traces, connection strings, or system versions
     const publicResponse = {
       status: isDbConnected ? 'ready' : 'not_ready',
