@@ -110,30 +110,50 @@ class AIService {
   }
 
   static async queryRag({ query, caseId, documentId = null, topK = 4, model = 'qwen2.5:latest' }) {
-    try {
-      const response = await fetch(`${AI_BASE_URL}/rag/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          case_id: caseId,
-          document_id: documentId,
-          top_k: topK,
-          model
-        }),
-        signal: AbortSignal.timeout(90000)
-      });
+    const maxAttempts = 3;
+    let lastError = null;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`RAG Query Error: ${errorText}`);
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(`${AI_BASE_URL}/rag/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            case_id: caseId,
+            document_id: documentId,
+            top_k: topK,
+            model
+          }),
+          signal: AbortSignal.timeout(90000)
+        });
+
+        if (response.status === 429 && attempt < maxAttempts) {
+          console.warn(`[AIService Warning]: RAG query 429 rate limit encountered; retrying attempt ${attempt + 1}...`);
+          await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+          continue;
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`RAG Query Error: ${errorText}`);
+        }
+
+        return await response.json();
+      } catch (err) {
+        lastError = err;
+        const isRetryable = err.message.includes('429') || err.message.includes('fetch failed') || err.name === 'TimeoutError';
+        if (attempt < maxAttempts && isRetryable) {
+          console.warn(`[AIService Warning]: RAG query attempt ${attempt} failed (${err.message}); retrying...`);
+          await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+          continue;
+        }
+        break;
       }
-
-      return await response.json();
-    } catch (err) {
-      console.warn('[AIService Warning]: RAG query error:', err.message);
-      throw err;
     }
+
+    console.warn('[AIService Warning]: RAG query error after attempts:', lastError?.message);
+    throw lastError;
   }
 }
 

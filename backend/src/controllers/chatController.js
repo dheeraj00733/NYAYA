@@ -155,21 +155,37 @@ exports.sendMessage = async (req, res, next) => {
 
     // 2. Query RAG Pipeline via AI Service
     let ragResult;
-    try {
-      ragResult = await AIService.queryRag({
-        query: content.trim(),
-        caseId: chat.case_id,
-        documentId: chat.document_id,
-        topK: 4,
-        model: activeModel
-      });
-    } catch (aiErr) {
-      console.warn('[RAG Query Warning]: AI Service failed, generating context-aware fallback', aiErr.message);
+
+    // Check if the case has any uploaded documents
+    const docCountRes = await client.query(
+      'SELECT COUNT(*) as count FROM legal_documents WHERE case_id = $1',
+      [chat.case_id]
+    );
+    const hasDocs = parseInt(docCountRes.rows[0]?.count || '0', 10) > 0;
+
+    if (!hasDocs) {
       ragResult = {
-        answer: "I could not reach the local AI inference engine to synthesize an answer. Please verify that the AI service and Ollama are active. (Error: " + aiErr.message + ")",
+        answer: "No documents have been uploaded to this case yet. Please upload legal filings, petitions, or court orders in the **Documents** section so NyayaFlow AI can analyze the case records and provide grounded legal answers with page citations.",
         citations: [],
         retrieved_chunk_ids: []
       };
+    } else {
+      try {
+        ragResult = await AIService.queryRag({
+          query: content.trim(),
+          caseId: chat.case_id,
+          documentId: chat.document_id,
+          topK: 4,
+          model: activeModel
+        });
+      } catch (aiErr) {
+        console.warn('[RAG Query Warning]: AI Service failed, generating context-aware fallback', aiErr.message);
+        ragResult = {
+          answer: "The AI reasoning service is currently warming up or temporarily busy. Please wait a few seconds and try submitting your inquiry again.",
+          citations: [],
+          retrieved_chunk_ids: []
+        };
+      }
     }
 
     // 3. Record Assistant Response with Citations
