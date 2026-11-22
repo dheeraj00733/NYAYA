@@ -21,7 +21,9 @@ const app = express();
 
 // Security & Parsing Middleware
 app.use(helmet({
-  crossOriginResourcePolicy: false // Allows PDF streaming to frontend viewers
+  crossOriginResourcePolicy: false, // Allows PDF streaming to frontend viewers
+  frameguard: false, // Disables X-Frame-Options: SAMEORIGIN so frontend on Vercel can embed PDF viewer in iframe
+  contentSecurityPolicy: false // Disables default CSP frame-ancestors 'self' so cross-origin frontend can embed documents
 }));
 app.use(cors({
   origin: env.CORS_ORIGIN && env.CORS_ORIGIN !== '*' 

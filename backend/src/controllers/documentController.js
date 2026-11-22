@@ -264,6 +264,8 @@ exports.downloadDocument = async (req, res, next) => {
           const storageResponse = await StorageService.getFileStream(cloudStoragePath);
           res.setHeader('Content-Type', mime_type || 'application/pdf');
           res.setHeader('Content-Disposition', `inline; filename="${file_name}"`);
+          res.removeHeader('X-Frame-Options');
+          res.setHeader('Content-Security-Policy', "frame-ancestors *");
           const arrayBuffer = await storageResponse.arrayBuffer();
           return res.send(Buffer.from(arrayBuffer));
         } catch (fetchErr) {
@@ -294,6 +296,8 @@ exports.downloadDocument = async (req, res, next) => {
 
     res.setHeader('Content-Type', mime_type || 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${file_name}"`);
+    res.removeHeader('X-Frame-Options');
+    res.setHeader('Content-Security-Policy', "frame-ancestors *");
 
     const fileStream = fs.createReadStream(resolvedPath);
     fileStream.pipe(res);
