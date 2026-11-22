@@ -37,9 +37,41 @@ export default function DocumentViewer() {
   // Summarize loading
   const [summarizing, setSummarizing] = useState(false);
 
+  // Direct Blob URL for same-origin iframe embedding
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(true);
+
   useEffect(() => {
     fetchDocumentDetails();
   }, [id]);
+
+  useEffect(() => {
+    if (!document) return;
+    const downloadUrl = api.getDocumentDownloadUrl(document.id);
+    let isMounted = true;
+    setPdfLoading(true);
+
+    fetch(downloadUrl)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then(blob => {
+        if (!isMounted) return;
+        const objUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+        setPdfBlobUrl(objUrl);
+        setPdfLoading(false);
+      })
+      .catch(err => {
+        console.warn('Direct blob fetch failed, falling back to downloadUrl:', err.message);
+        if (isMounted) setPdfLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
+    };
+  }, [document?.id]);
 
   const fetchDocumentDetails = async () => {
     try {
@@ -208,12 +240,19 @@ export default function DocumentViewer() {
       {/* Main Split Screen Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Pane: Embedded PDF Reader */}
-        <div className="w-1/2 flex flex-col border-r border-slate-200 bg-slate-200/80 relative">
-          <iframe
-            src={`${downloadUrl}#toolbar=1&navpanes=0`}
-            title={document.title}
-            className="w-full h-full border-none"
-          />
+        <div className="w-1/2 flex flex-col border-r border-slate-200 bg-slate-100 relative">
+          {pdfLoading ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-slate-500">
+              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+              <p className="text-xs font-medium">Loading document reader...</p>
+            </div>
+          ) : (
+            <iframe
+              src={`${pdfBlobUrl || downloadUrl}#toolbar=1&navpanes=0`}
+              title={document.title}
+              className="w-full h-full border-none"
+            />
+          )}
         </div>
 
         {/* Right Pane: AI Intelligence Sidecar (Summary, Facts, Q&A) */}

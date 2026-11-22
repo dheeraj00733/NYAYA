@@ -261,13 +261,8 @@ exports.downloadDocument = async (req, res, next) => {
       const cloudStoragePath = file_path.replace(/^supabase:\/\/[^/]+\//, '');
       if (StorageService.isConfigured()) {
         try {
-          const storageResponse = await StorageService.getFileStream(cloudStoragePath);
-          res.setHeader('Content-Type', mime_type || 'application/pdf');
-          res.setHeader('Content-Disposition', `inline; filename="${file_name}"`);
-          res.removeHeader('X-Frame-Options');
-          res.setHeader('Content-Security-Policy', "frame-ancestors *");
-          const arrayBuffer = await storageResponse.arrayBuffer();
-          return res.send(Buffer.from(arrayBuffer));
+          const signedUrl = await StorageService.createSignedUrl(cloudStoragePath, 3600);
+          return res.redirect(signedUrl);
         } catch (fetchErr) {
           return res.status(502).json({
             success: false,
